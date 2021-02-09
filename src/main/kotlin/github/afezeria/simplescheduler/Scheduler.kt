@@ -1,7 +1,10 @@
 package github.afezeria.simplescheduler
 
 import org.slf4j.LoggerFactory
-import java.lang.management.ManagementFactory
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.net.InetAddress
+import java.time.LocalDateTime
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -15,45 +18,140 @@ class Scheduler(
     private val dataSource: DataSource,
     private val actionProvider: ActionProvider,
     private val maximumPoolSize: Int,
-    private val batchSize: Int = maximumPoolSize,
     private val pollInterval: Int,
+    private val batchSize: Int = maximumPoolSize,
     private val ordAsc: Boolean = true,
     private val planNamePrefix: String? = null,
+    private val printStackTraceToErrorMsg: Boolean = false,
     name: String? = null,
-) {
+) : InfoHelper(dataSource) {
     private val logger = LoggerFactory.getLogger(this::class.java)
-    lateinit var thread: Thread
+    private lateinit var thread: Thread
     private val pool: ThreadPoolExecutor
     val name: String
     private var sid: Int? = null
+    val id: Int?
+        get() = sid
 
     init {
         if (batchSize > maximumPoolSize) {
             throw IllegalArgumentException("batchSize must less than maxPoolSize")
+        }
+        if (maximumPoolSize < 1) {
+            throw IllegalArgumentException("maximumPoolSize must greater than 0")
         }
         pool = ThreadPoolExecutor(
             1, maximumPoolSize, 1L,
             TimeUnit.MINUTES,
             SynchronousQueue(), ThreadPoolExecutor.AbortPolicy()
         )
-        this.name = name ?: ManagementFactory.getRuntimeMXBean().name
+        this.name =
+            name ?: "${ProcessHandle.current().pid()}@${InetAddress.getLocalHost().hostName}"
+
     }
 
 
     fun start() {
         thread = CoreThread()
         thread.start()
-
     }
 
     fun stop() {
         pool.shutdown()
-        try {
-            thread.interrupt()
-        } catch (e: InterruptedException) {
-            logger.info("stop pull task")
-        }
+        thread.interrupt()
+    }
 
+    fun createBasicPlan(
+        name: String,
+        intervalTime: Int,
+        actionName: String,
+        timeout: Int,
+        startTime: LocalDateTime,
+        endTime: LocalDateTime? = null,
+        ord: Int = 50,
+        remainingTimes: Int? = null,
+        execAfterStart: Boolean = false,
+        allowErrorTimes: Int? = null,
+        serialExec: Boolean = false,
+        planData: String? = null,
+        createUser: String? = null,
+    ): PlanInfo {
+        dataSource.connection.use {
+            val res = it.execute(
+                """
+                insert into simples_plan (type, name, ord, interval_time, remaining_times, action_name, 
+                    exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
+                    create_user, plan_data) 
+                values ('basic',?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
+            """, name, ord, intervalTime, remainingTimes, actionName,
+                execAfterStart, serialExec, allowErrorTimes, timeout, startTime, endTime,
+                createUser, planData
+            )
+            return PlanInfo(res[0])
+        }
+    }
+
+
+    fun createCronPlan(
+        cron: String,
+        name: String,
+        actionName: String,
+        timeout: Int,
+        startTime: LocalDateTime,
+        endTime: LocalDateTime? = null,
+        ord: Int = 50,
+        remainingTimes: Int? = null,
+        allowErrorTimes: Int? = null,
+        execAfterStart: Boolean = false,
+        serialExec: Boolean = false,
+        planData: String? = null,
+        createUser: String? = null,
+    ): PlanInfo {
+        dataSource.connection.use {
+            val res = it.execute(
+                """
+                insert into simples_plan (type, name, ord, cron, remaining_times, action_name, 
+                    exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
+                    create_user, plan_data) 
+                values ('cron',?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
+            """, name, ord, cron, remainingTimes, actionName,
+                execAfterStart, serialExec, allowErrorTimes, timeout, startTime, endTime,
+                createUser, planData
+            )
+            return PlanInfo(res[0])
+        }
+    }
+
+
+    inner class Task(val id: Int, val initData: String? = null, val body: (String) -> Unit) :
+        Runnable {
+        override fun run() {
+            logger.info("task start. [id:{}]", id)
+            try {
+                body(initData ?: "")
+            } catch (e: Exception) {
+                val errMsg = if (printStackTraceToErrorMsg) {
+                    val writer = StringWriter()
+                    e.printStackTrace(PrintWriter(writer))
+                    writer.toString()
+                } else {
+                    e.message
+                }
+                logger.info("task failed. [id:{}]", id, e)
+                dataSource.connection.use {
+                    it.execute(
+                        "update simples_task set status='error',error_msg=? where id = ?",
+                        errMsg,
+                        id
+                    )
+                }
+                return
+            }
+            dataSource.connection.use {
+                it.execute("select * from simples_f_mark_task_completed(?)", id)
+            }
+
+        }
     }
 
     inner class CoreThread : Thread() {
@@ -63,7 +161,11 @@ class Scheduler(
                 execTask()
                 markScheduler()
                 markTask()
-                sleep((pollInterval * 1000).toLong())
+                try {
+                    sleep((pollInterval * 1000).toLong())
+                } catch (e: InterruptedException) {
+                    break
+                }
             }
         }
 
@@ -74,9 +176,10 @@ class Scheduler(
                 if (number != 0) {
                     if (number > batchSize) number = batchSize
 
+
                     val execute = it.execute(
                         "select * from simples_f_get_task(?,?,?,?,?,?)",
-                        sid, name, pollInterval, number, planNamePrefix, ordAsc
+                        sid, this@Scheduler.name, pollInterval, number, planNamePrefix, ordAsc
                     )
                     logger.info(
                         "pulled {} tasks",
@@ -90,7 +193,7 @@ class Scheduler(
                         sid = data["s_id"] as Int
                         data["task_id"]?.run {
                             val taskId = this as Int
-                            val initData = data["init_data"] as String
+                            val initData = data["init_data"] as String?
                             val actionName = data["action_name"] as String
                             val body = actionProvider.getTask(actionName)
                             if (body == null) {
@@ -139,7 +242,7 @@ class Scheduler(
 
         fun markScheduler() {
             dataSource.connection.use {
-                val list = it.execute("select * from simples_mark_dead_scheduler()")
+                val list = it.execute("select * from simples_f_mark_dead_scheduler()")
                 for (m in list) {
                     logger.warn(
                         "scheduler did not end properly. [scheduler_id:{},scheduler_name]",

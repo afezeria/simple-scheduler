@@ -1,0 +1,14 @@
+<configuration>
+    <appender class="ch.qos.logback.core.ConsoleAppender" name="stdout">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger level="debug" name="github.afezeria.simplescheduler">
+        <appender-ref ref="stdout"/>
+    </logger>
+    <logger level="debug" name="p6spy">
+        <appender-ref ref="stdout"/>
+    </logger>
+</configuration>

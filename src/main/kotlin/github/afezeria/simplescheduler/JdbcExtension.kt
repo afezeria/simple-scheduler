@@ -1,18 +1,26 @@
 package github.afezeria.simplescheduler
 
-import cn.hutool.log.dialect.slf4j.Slf4jLogFactory
 import org.intellij.lang.annotations.Language
+import org.slf4j.LoggerFactory
 import java.sql.*
 
 /**
  * @author afezeria
  */
-private val logger = Slf4jLogFactory.get()
+private val logger = LoggerFactory.getLogger("github.afezeria.simplescheduler.JdbcExtension")
 
 internal fun Connection.execute(
     @Language("sql") sql: String,
     vararg params: Any?
 ): MutableList<MutableMap<String, Any?>> {
+    if (logger.isDebugEnabled) {
+        logger.debug(
+            """
+            sql: {}
+            parameters: {}
+        """, sql, params
+        )
+    }
     return if (params.isNotEmpty()) {
         prepareStatement(sql).use {
             params.forEachIndexed { index, any ->
@@ -29,7 +37,11 @@ internal fun Connection.execute(
                     }
                 }
             }
-            it.resultSet.toList()
+            val list = it.resultSet.toList()
+            if (logger.isDebugEnabled) {
+                logger.debug("result: {}", list)
+            }
+            list
         }
     } else {
         createStatement().use {
@@ -44,7 +56,11 @@ internal fun Connection.execute(
                     }
                 }
             }
-            it.resultSet.toList()
+            val list = it.resultSet.toList()
+            if (logger.isDebugEnabled) {
+                logger.debug("result: {}", list)
+            }
+            list
         }
     }
 }
