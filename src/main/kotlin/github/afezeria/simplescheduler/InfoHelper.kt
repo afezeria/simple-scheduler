@@ -96,7 +96,7 @@ open class InfoHelper(private val dataSource: DataSource) {
         limit: Int = 50,
         offset: Int = 0
     ): List<PlanInfo> {
-        if (limit != null && limit < 1) {
+        if (limit < 1) {
             throw IllegalArgumentException("limit  cannot be negative")
         }
         val conds = mutableListOf<String>()

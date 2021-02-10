@@ -5,10 +5,9 @@ create table simples_plan
     id                   serial primary key,
     type                 text        not null default 'cron' check ( type in ('cron', 'basic') ),
     cron                 text,
-    name                 text        not null,
+    name                 text        not null unique,
     status               text        not null default 'inactive' check ( status in ('active', 'inactive', 'error')),
     executing            bool        not null default false,
-    scheduler_id         int,
     ord                  int         not null default 50 check ( ord between 0 and 100),
     interval_time        int,
     remaining_times      int,
@@ -27,7 +26,8 @@ create table simples_plan
     plan_data            text,
     last_exec_start_time timestamptz not null default now(),
     last_exec_end_time   timestamptz not null default now(),
-    next_exec_time       timestamptz not null default now()
+    next_exec_time       timestamptz not null default now(),
+    remark               text
 );
 comment on table simples_plan is '定时任务计划';
 comment on column simples_plan.type is '类型，cron：根据表达式执行，basic：根据时间间隔执行';
@@ -35,7 +35,6 @@ comment on column simples_plan.cron is 'cron表达式';
 comment on column simples_plan.name is '名称';
 comment on column simples_plan.status is '状态，inactive 和 error 状态的任务会被执行器忽略';
 comment on column simples_plan.executing is '是否有任务正在执行';
-comment on column simples_plan.scheduler_id is '客户端生成的随机字符传';
 comment on column simples_plan.ord is '优先级，0-100，0为最高，默认50';
 comment on column simples_plan.interval_time is '每次执行的间隔时间单位秒，用于basic类型';
 comment on column simples_plan.remaining_times is '剩余执行次数';
@@ -84,7 +83,7 @@ create table simples_task
     action_name  text        not null,
     init_data    text,
     status       text        not null default 'start' check ( status in ('start', 'stop', 'error', 'timeout') ),
-    timeout      int         not null,
+    timeout_time timestamptz not null,
     error_msg    text
 );
 comment on table simples_task is '任务列表';
@@ -96,9 +95,18 @@ comment on column simples_task.action_name is '动作名称，和plain_id关联�
 comment on column simples_task.init_data is '初始化数据';
 comment on column simples_task.status is '状态';
 comment on column simples_task.error_msg is '错误信息';
-comment on column simples_task.timeout is '超时时间';
+comment on column simples_task.timeout_time is '超时时间';
 
 -- flag:cron function
+--  文件格式說明
+--  ┌──分鐘（0 - 59）
+--  │ ┌──小時（0 - 23）
+--  │ │ ┌──日（1 - 31）
+--  │ │ │ ┌─月（1 - 12）
+--  │ │ │ │ ┌─星期（0 - 6，表示从周日到周六）
+--  │ │ │ │ │
+--  *  *  *  *  *
+-- 支持的符号： , - / ?(日和星期)
 create or replace function simples_f_get_next_execution_time(cron text, start_time timestamptz) returns timestamptz
     language plpgsql
     immutable as
@@ -381,7 +389,6 @@ declare
 begin
     if record_new.type = 'cron' then
         next_exec_time := get_next_execution_time(record_new.cron, record_new.start_time);
-
     else
         next_exec_time := record_new.start_time + record_new.interval_time * interval '1 second';
     end if;
@@ -389,6 +396,8 @@ begin
         next_exec_time := record_new.start_time;
     end if;
     record_new.next_exec_time = next_exec_time;
+    record_new.last_exec_start_time = record_new.start_time;
+    record_new.last_exec_end_time = record_new.start_time;
     return record_new;
 end;
 $$;
@@ -417,7 +426,10 @@ begin
         elsif record_old.last_exec_start_time <> record_new.last_exec_start_time then
             s_time := record_new.last_exec_start_time;
         end if;
-        if record_new.cron <> record_old.cron or s_time is not null then
+        if record_new.cron <> record_old.cron then
+            s_time := record_new.last_exec_start_time;
+        end if;
+        if s_time is not null then
             next_exec_time := simples_f_get_next_execution_time(record_new.cron, s_time);
         end if;
     elsif record_new.type = 'basic' then
@@ -430,6 +442,13 @@ begin
                 s_time := record_new.last_exec_start_time;
             end if;
         end if;
+        if record_new.serial_exec <> record_old.serial_exec then
+            if record_new.serial_exec then
+                s_time := record_new.last_exec_end_time;
+            else
+                s_time := record_new.last_exec_start_time;
+            end if;
+        end if;
         if record_new.start_time <> record_old.start_time then
             s_time := record_new.start_time;
         end if;
@@ -438,12 +457,21 @@ begin
         end if;
     end if;
     if record_new.exec_after_start and record_new.start_time <> record_old.start_time then
-        next_exec_time := current_timestamp;
+        next_exec_time := record_new.start_time;
     end if;
     if next_exec_time is not null then
         record_new.next_exec_time = next_exec_time;
     end if;
+
+--     重新启用计划时清空错误计数
+    if record_new.status = 'active' and record_old.status = 'error' then
+        record_new.error_times = 0;
+        record_new.timeout_times = 0;
+    end if;
 --  更新状态
+    if record_new.remaining_times is not null and record_new.remaining_times = 0 then
+        record_new.status = 'inactive';
+    end if;
     if record_new.allow_error_times < (record_new.timeout_times + record_new.error_times) then
         record_new.status = 'error';
     end if;
@@ -452,9 +480,6 @@ begin
 --         record_new.remaining_times :=
 --                 record_new.remaining_times + 1;
 --     end if;
-    if record_new.remaining_times is not null and record_new.remaining_times = 0 then
-        record_new.status = 'inactive';
-    end if;
     return record_new;
 end;
 $$;
@@ -466,66 +491,6 @@ create trigger simples_plan_update_trigger
     for each row
 execute function simples_plan_trigger_fun_update();
 
-create or replace function simples_task_trigger_fun_update() returns trigger
-    language plpgsql as
-$$
-declare
-    record_new simples_task := new;
-    record_old simples_task := old;
-    s_plan     simples_plan;
-begin
-    if record_new.status <> record_old.status then
---         更新计划
-        select * into s_plan from simples_plan where id = record_old.plain_id for update;
-        if record_new.status = 'stop' then
---          设置结束时间
-            record_new.end_time = current_timestamp;
-            if s_plan.scheduler_id = record_old.scheduler_id then
-                update simples_plan
-                set executing          = false,
-                    scheduler_id       = null,
-                    last_exec_end_time = current_timestamp
-                where id = s_plan.id
-                  and scheduler_id = record_old.scheduler_id;
-            end if;
-        elsif record_new.status = 'error' then
---          设置结束时间
-            record_new.end_time = current_timestamp;
-            if s_plan.scheduler_id = record_old.scheduler_id then
-                update simples_plan
-                set executing          = false,
-                    scheduler_id       = null,
-                    last_exec_end_time = current_timestamp,
-                    error_times        = error_times + 1
-                where id = s_plan.id;
-            else
-                update simples_plan set error_times = 1 where id = s_plan.id;
-            end if;
-        elsif record_new.status = 'timeout' then
-            if s_plan.scheduler_id = record_old.scheduler_id then
-                update simples_plan
-                set executing          = false,
-                    scheduler_id       = null,
---                     当前任务没有结束，将标记超时的时间作为计划的最后执行结束时间，
---                     避免basic类型的串行执行的任务在当前任务标记超时并更新计划后立刻执行
-                    last_exec_end_time = current_timestamp,
-                    timeout_times      = simples_plan.timeout_times + 1
-                where id = s_plan.id;
-            else
-                update simples_plan set timeout_times = 1 where id = s_plan.id;
-            end if;
-        end if;
-    end if;
-    return record_new;
-end;
-$$;
-comment on function simples_task_trigger_fun_update() is '任务更新触发器，更新计划相关数据';
-drop trigger if exists simples_task_update_trigger on simples_task;
-create trigger simples_task_update_trigger
-    before update
-    on simples_task
-    for each row
-execute function simples_task_trigger_fun_update();
 
 -- flag:function
 drop function if exists simples_f_keepalive(c_id integer, c_name text, c_interval integer);
@@ -591,40 +556,6 @@ end;
 $$;
 comment on function simples_f_mark_dead_scheduler() is '标记已未正常停止的调度程序';
 
-drop function if exists simples_f_mark_timeout_task();
-create or replace function simples_f_mark_timeout_task()
-    returns table
-            (
-                plan_id         int,
-                plan_name       text,
-                task_id         int,
-                task_start_time timestamptz,
-                scheduler_id    int,
-                scheduler_name  text
-            )
-    language plpgsql
-as
-$$
-begin
-    return query with updated as (
-        update simples_task
-            set status = 'timeout'
-            where id in (
-                select st.id
-                from simples_task st
-                where status = 'start'
-                  and current_timestamp > (start_time + timeout * interval '1 second')
-                    for update skip locked
-            )
-            returning id,plain_id,simples_task.scheduler_id,start_time
-    )
-                 select sp.id, sp.name, u.id, u.start_time, ss.id, ss.name
-                 from updated u
-                          left join simples_plan sp on u.plain_id = sp.id
-                          left join simples_scheduler ss on ss.id = u.scheduler_id;
-end;
-$$;
-comment on function simples_f_mark_timeout_task() is '标记超时的任务';
 
 drop function if exists simples_f_get_task(c_id int, c_name text, c_interval int, task_size int,
                                            name_prefix text, asc_ord bool);
@@ -710,7 +641,8 @@ begin
         if id_arr is not null then
             return query with updated as (
                 update simples_plan
-                    set scheduler_id = scheduler.id,
+                    set
+--                         scheduler_id = scheduler.id,
                         executing = true,
                         last_exec_start_time = current_timestamp,
                         last_exec_end_time = current_timestamp,
@@ -719,8 +651,13 @@ begin
                     where id = any (id_arr)
                     returning id,simples_plan.action_name,plan_data,timeout
                 )
-                insert into simples_task (plain_id, scheduler_id, action_name, init_data, timeout)
-                    select upd.id, scheduler.id, upd.action_name, upd.plan_data, upd.timeout
+                insert into simples_task (plain_id, scheduler_id, action_name, init_data,
+                                          timeout_time)
+                    select upd.id,
+                           scheduler.id,
+                           upd.action_name,
+                           upd.plan_data,
+                           current_timestamp + upd.timeout * interval '1 second'
                     from updated upd
                     returning scheduler.id,simples_task.action_name,simples_task.id,simples_task.init_data;
             return;
@@ -743,7 +680,15 @@ begin
     select * into task from simples_task where id = task_id for update;
     if FOUND then
         if task.status = 'start' then
-            update simples_task set status = 'stop' where id = task_id;
+            update simples_task set status = 'stop', end_time= current_timestamp where id = task_id;
+            update simples_plan
+            set executing= false,
+--                 scheduler_id =null,
+                last_exec_end_time = current_timestamp
+            where id = task.plain_id
+              and last_exec_start_time = task.start_time
+--               and scheduler_id = task.scheduler_id
+            ;
         elsif task.status = 'timeout' then
             update simples_task set end_time = current_timestamp where id = task_id;
         end if;
@@ -752,3 +697,95 @@ end;
 $$;
 comment on function simples_f_mark_task_completed(task_id int) is '标记任务已完成';
 
+create or replace function simples_f_mark_task_error(task_id int, msg text) returns void
+    language plpgsql as
+$$
+declare
+    task simples_task;
+    plan simples_plan;
+begin
+    select * into task from simples_task where id = task_id for update;
+    if FOUND then
+        update simples_task
+        set status    = 'error',
+            end_time  = current_timestamp,
+            error_msg = msg
+        where id = task_id;
+        if task.status = 'start' then
+            select * into plan from simples_plan where id = task.plain_id for update;
+--             if plan.scheduler_id = task.scheduler_id then
+            if plan.last_exec_start_time = task.start_time then
+                update simples_plan
+                set executing          = false,
+--                     scheduler_id       = null
+                    last_exec_end_time = current_timestamp,
+                    error_times        = error_times + 1
+                where id = task.plain_id;
+            else
+                update simples_plan
+                set error_times = error_times + 1
+                where id = task.plain_id;
+            end if;
+        elsif task.status = 'timeout' then
+            update simples_plan
+            set error_times = error_times + 1
+            where id = task.plain_id;
+        end if;
+    end if;
+end;
+$$;
+comment on function simples_f_mark_task_error(task_id int,msg text) is '标记任务执行失败';
+
+drop function if exists simples_f_mark_timeout_task();
+create or replace function simples_f_mark_timeout_task()
+    returns table
+            (
+                plan_id         int,
+                plan_name       text,
+                action_name     text,
+                scheduler_id    int,
+                task_id         int,
+                task_start_time timestamptz
+            )
+    language plpgsql
+as
+$$
+declare
+    task simples_task;
+    plan simples_plan;
+begin
+    for task in select *
+                from simples_task st
+                where status = 'start'
+                  and current_timestamp > timeout_time
+                    for update skip locked
+        loop
+            select * into plan from simples_plan where id = task.plain_id for update skip locked;
+            if found then
+                if plan.last_exec_start_time = task.start_time then
+--                     if plan.scheduler_id = task.scheduler_id then
+                    update simples_plan
+                    set executing     = false,
+--                         scheduler_id= null,
+--                         last_exec_end_time = current_timestamp,
+                        timeout_times = timeout_times + 1
+                    where id = task.plain_id;
+                else
+                    update simples_plan
+                    set timeout_times = timeout_times + 1
+                    where id = task.plain_id;
+                end if;
+                update simples_task set status= 'timeout' where id = task.id;
+                plan_id = plan.id;
+                plan_name = plan.name;
+                action_name = task.action_name;
+                scheduler_id = task.scheduler_id;
+                task_id = task.id;
+                task_start_time = task.start_time;
+                return next;
+            end if;
+        end loop;
+    return;
+end;
+$$;
+comment on function simples_f_mark_timeout_task() is '标记超时的任务';

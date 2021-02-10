@@ -13,7 +13,6 @@ class PlanInfo(map: Map<String, Any?>) {
     val name: String
     val status: String
     val executing: Boolean
-    val schedulerId: Int?
     val ord: Int
     val intervalTime: Int?
     val remainingTimes: Int?
@@ -33,6 +32,7 @@ class PlanInfo(map: Map<String, Any?>) {
     val lastExecStartTime: LocalDateTime
     val lastExecEndTime: LocalDateTime
     val nextExecTime: LocalDateTime
+    val remark: String?
 
     init {
         id = map["id"] as Int
@@ -41,7 +41,6 @@ class PlanInfo(map: Map<String, Any?>) {
         name = map["name"] as String
         status = map["status"] as String
         executing = map["executing"] as Boolean
-        schedulerId = map["scheduler_id"] as Int?
         ord = map["ord"] as Int
         intervalTime = map["interval_time"] as Int?
         remainingTimes = map["remaining_times"] as Int?
@@ -61,6 +60,7 @@ class PlanInfo(map: Map<String, Any?>) {
         lastExecStartTime = map["last_exec_start_time"] as LocalDateTime
         lastExecEndTime = map["last_exec_end_time"] as LocalDateTime
         nextExecTime = map["next_exec_time"] as LocalDateTime
+        remark = map["remark"] as String?
     }
 
 }
@@ -92,7 +92,7 @@ class TaskInfo(map: Map<String, Any?>) {
     val actionName: String
     val initData: String?
     val status: String
-    val timeout: Int
+    val timeoutTime: LocalDateTime
     val errorMsg: String?
 
     init {
@@ -104,7 +104,7 @@ class TaskInfo(map: Map<String, Any?>) {
         actionName = map["action_name"] as String
         initData = map["init_data"] as String?
         status = map["status"] as String
-        timeout = map["timeout"] as Int
+        timeoutTime = map["timeout_time"] as LocalDateTime
         errorMsg = map["error_msg"] as String?
     }
 

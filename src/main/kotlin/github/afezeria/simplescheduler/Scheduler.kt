@@ -91,6 +91,69 @@ class Scheduler(
         }
     }
 
+    fun updatePlan(plan: PlanInfo): PlanInfo {
+        dataSource.connection.use {
+            val res = it.execute(
+                """
+                update simples_plan 
+                set type = ?,
+                    cron = ?,
+                    name = ?,
+                    status = ?,
+                    executing = ?,
+                    ord = ?,
+                    interval_time = ?,
+                    remaining_times = ?,
+                    action_name = ?,
+                    exec_after_start = ?,
+                    serial_exec = ?,
+                    total_times = ?,
+                    error_times = ?,
+                    allow_error_times = ?,
+                    timeout = ?,
+                    timeout_times = ?,
+                    start_time = ?,
+                    end_time = ?,
+                    create_time = ?,
+                    create_user = ?,
+                    plan_data = ?,
+                    last_exec_start_time = ?,
+                    last_exec_end_time = ?,
+                    next_exec_time = ?,
+                    remark = ?
+                where id = ?
+                returning *;
+            """,
+                plan.id,
+                plan.type,
+                plan.cron,
+                plan.name,
+                plan.status,
+                plan.executing,
+                plan.ord,
+                plan.intervalTime,
+                plan.remainingTimes,
+                plan.actionName,
+                plan.execAfterStart,
+                plan.serialExec,
+                plan.totalTimes,
+                plan.errorTimes,
+                plan.allowErrorTimes,
+                plan.timeout,
+                plan.timeoutTimes,
+                plan.startTime,
+                plan.endTime,
+                plan.createTime,
+                plan.createUser,
+                plan.planData,
+                plan.lastExecStartTime,
+                plan.lastExecEndTime,
+                plan.nextExecTime,
+                plan.remark,
+            )[0]
+            return PlanInfo(res)
+        }
+    }
 
     fun createCronPlan(
         cron: String,
@@ -139,11 +202,7 @@ class Scheduler(
                 }
                 logger.info("task failed. [id:{}]", id, e)
                 dataSource.connection.use {
-                    it.execute(
-                        "update simples_task set status='error',error_msg=? where id = ?",
-                        errMsg,
-                        id
-                    )
+                    it.execute("select simples_f_mark_task_error(?,?)", id, errMsg)
                 }
                 return
             }
@@ -228,13 +287,13 @@ class Scheduler(
                 val list = it.execute("select * from simples_f_mark_timeout_task()")
                 for (m in list) {
                     logger.warn(
-                        "task timeout. [plan_id:{},plan_name:{},task_id:{},task_start_time:{},scheduler_id:{},scheduler_name:{}]",
+                        "task timeout. [plan_id:{},plan_name:{},action_name:{},scheduler_id:{},task_id:{},task_start_time:{}]",
                         m["plan_id"],
                         m["plan_name"],
+                        m["action_name"],
+                        m["scheduler_id"],
                         m["task_id"],
                         m["task_start_time"],
-                        m["scheduler_id"],
-                        m["scheduler_name"]
                     )
                 }
             }

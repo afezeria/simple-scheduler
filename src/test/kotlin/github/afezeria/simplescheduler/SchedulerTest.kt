@@ -6,6 +6,9 @@ import com.zaxxer.hikari.HikariDataSource
 import io.kotest.matchers.shouldBe
 import org.intellij.lang.annotations.Language
 import org.junit.jupiter.api.*
+import org.testcontainers.containers.BindMode
+import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy
+import java.time.Duration
 import java.time.LocalDateTime
 import javax.sql.DataSource
 
@@ -20,26 +23,26 @@ internal class SchedulerTest {
         @JvmStatic
         @BeforeAll
         fun before() {
-//            container = KPostgreSQLContainer("postgres:12.5-alpine")
-//                .withFileSystemBind(
-//                    "sql", "/docker-entrypoint-initdb.d",
-//                    BindMode.READ_ONLY
-//                )
-//                .withExposedPorts(5432)
-//                .waitingFor(
-//                    HostPortWaitStrategy()
-//                        .withStartupTimeout(Duration.ofSeconds(10))
-//                )
-//            container.start()
+            container = KPostgreSQLContainer("postgres:12.5-alpine")
+                .withFileSystemBind(
+                    "sql", "/docker-entrypoint-initdb.d",
+                    BindMode.READ_ONLY
+                )
+                .withExposedPorts(5432)
+                .waitingFor(
+                    HostPortWaitStrategy()
+                        .withStartupTimeout(Duration.ofSeconds(10))
+                )
+            container.start()
             dataSource = P6DataSource(
                 HikariDataSource(HikariConfig().apply {
                     jdbcUrl =
                         "jdbc:postgresql://localhost:5432/test"
                     username = "test"
                     password = "123456"
-//                    jdbcUrl = container.jdbcUrl
-//                    username = container.username
-//                    password = container.password
+                    jdbcUrl = container.jdbcUrl
+                    username = container.username
+                    password = container.password
                 })
             )
         }
@@ -148,7 +151,6 @@ internal class SchedulerTest {
             PlanInfo(get(0))
         }
         planInfo.timeoutTimes shouldBe 1
-        planInfo.schedulerId shouldBe null
 
         val res = sql("select * from simples_task where plain_id = ?", plan.id)
         res.size shouldBe 1
