@@ -12,7 +12,6 @@ repositories {
 }
 
 dependencies {
-    implementation("cn.hutool:hutool-all:4.5.15")
     implementation(kotlin("stdlib-jdk8"))
     implementation("org.slf4j:slf4j-api:1.7.30")
 
@@ -20,7 +19,6 @@ dependencies {
     testImplementation("org.postgresql:postgresql:42.2.10")
     testImplementation(platform("org.testcontainers:testcontainers-bom:1.15.1"))
     testImplementation("org.testcontainers:postgresql:1.15.1")
-
     testImplementation("ch.qos.logback:logback-classic:1.2.3")
     testImplementation("p6spy:p6spy:3.9.1")
     testImplementation("org.testcontainers:junit-jupiter")

@@ -6,6 +6,15 @@ import javax.sql.DataSource
  * @author afezeria
  */
 open class InfoHelper(private val dataSource: DataSource) {
+    /**
+     * 查询任务信息
+     * @param planId 计划id
+     * @param schedulerId 调度器id
+     * @param actionName 动作名称，前缀查找
+     * @param status 状态
+     * @param limit
+     * @param offset
+     */
     fun getTaskInfo(
         planId: Int? = null,
         schedulerId: Int? = null,
@@ -15,7 +24,7 @@ open class InfoHelper(private val dataSource: DataSource) {
         offset: Int = 0
     ): List<TaskInfo> {
         if (limit < 1) {
-            throw IllegalArgumentException("limit  cannot be negative")
+            throw IllegalArgumentException("limit must be greater than 0")
         }
         val conds = mutableListOf<String>()
         val params = mutableListOf<Any>()
@@ -49,6 +58,14 @@ open class InfoHelper(private val dataSource: DataSource) {
         }
     }
 
+    /**
+     * 获取调度器信息
+     * @param id id
+     * @param name 名称
+     * @param status 状态
+     * @param limit
+     * @param offset
+     */
     fun getSchedulerInfo(
         id: Int? = null,
         name: String? = null,
@@ -57,7 +74,7 @@ open class InfoHelper(private val dataSource: DataSource) {
         offset: Int = 0
     ): List<SchedulerInfo> {
         if (limit < 1) {
-            throw IllegalArgumentException("limit  cannot be negative")
+            throw IllegalArgumentException("limit must be greater than 0")
         }
         val conds = mutableListOf<String>()
         val params = mutableListOf<Any>()
@@ -87,6 +104,16 @@ open class InfoHelper(private val dataSource: DataSource) {
         }
     }
 
+    /**
+     * 获取计划信息
+     * @param id id
+     * @param name 名称
+     * @param type 类型
+     * @param status 状态
+     * @param actionName 动作名称，前缀查找
+     * @param limit
+     * @param offset
+     */
     fun getPlanInfo(
         id: Int? = null,
         name: String? = null,
@@ -97,12 +124,12 @@ open class InfoHelper(private val dataSource: DataSource) {
         offset: Int = 0
     ): List<PlanInfo> {
         if (limit < 1) {
-            throw IllegalArgumentException("limit  cannot be negative")
+            throw IllegalArgumentException("limit must be greater than 0")
         }
         val conds = mutableListOf<String>()
         val params = mutableListOf<Any>()
         if (id != null) {
-            conds.add("(plan_id = ?)")
+            conds.add("(id = ?)")
             params.add(id)
         }
         if (name != null) {

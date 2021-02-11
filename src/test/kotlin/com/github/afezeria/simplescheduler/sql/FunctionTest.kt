@@ -44,7 +44,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'));
             """
@@ -72,7 +72,7 @@ class FunctionTest : AbstractContainerTest() {
 //            task.start_time != plan.last_start_time and current_timestamp > task.timeout_time
             sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-02 00:00:00','print','start',('2020-01-02 00:00:00'::timestamptz+20*interval '1 second'));
             """
@@ -99,7 +99,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -133,7 +133,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -165,7 +165,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-02 00:00:00','print','start',('2020-01-02 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -197,7 +197,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','timeout',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -232,7 +232,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -262,7 +262,7 @@ class FunctionTest : AbstractContainerTest() {
             )[0]
             val insTaskRes = sql(
                 """
-                insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
+                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
                 values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','timeout',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
@@ -372,7 +372,7 @@ class FunctionTest : AbstractContainerTest() {
                 remainingTimes shouldBe 9
             }
             info.apply {
-                plan.id shouldBe plainId
+                plan.id shouldBe planId
                 schedulerId shouldBe res["s_id"]
                 id shouldBe res["task_id"]
                 actionName shouldBe plan.actionName
@@ -535,7 +535,7 @@ class FunctionTest : AbstractContainerTest() {
                 remainingTimes shouldBe 9
             }
             info.apply {
-                plan.id shouldBe plainId
+                plan.id shouldBe planId
                 schedulerId shouldBe res["s_id"]
                 id shouldBe res["task_id"]
                 actionName shouldBe plan.actionName
@@ -590,7 +590,7 @@ class FunctionTest : AbstractContainerTest() {
                 remainingTimes shouldBe 9
             }
             info.apply {
-                plan.id shouldBe plainId
+                plan.id shouldBe planId
                 schedulerId shouldBe res["s_id"]
                 id shouldBe res["task_id"]
                 actionName shouldBe plan.actionName

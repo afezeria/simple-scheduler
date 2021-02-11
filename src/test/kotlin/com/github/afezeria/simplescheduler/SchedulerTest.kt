@@ -99,7 +99,7 @@ internal class SchedulerTest : AbstractContainerTest() {
         }
         planInfo.timeoutTimes shouldBe 1
 
-        val res = sql("select * from simples_task where plain_id = ?", plan.id)
+        val res = sql("select * from simples_task where plan_id = ?", plan.id)
         res.size shouldBe 1
         val info = TaskInfo(res[0])
         info.status shouldBe "timeout"
@@ -115,6 +115,7 @@ internal class SchedulerTest : AbstractContainerTest() {
             pollInterval = 1,
         )
         scheduler.start()
+
         scheduler.createCronPlan(
             cron = "* * * * *",
             name = "test",
@@ -155,7 +156,7 @@ internal class SchedulerTest : AbstractContainerTest() {
         c1.start()
         Thread.sleep(2000)
         c2.start()
-        Thread.sleep(10_000)
+        Thread.sleep(11_000)
 //        执行流程：
 //        创建任务，任务立刻执行
 //        0s c1 启动并拉取到一条任务，任务下次执行时间为2s

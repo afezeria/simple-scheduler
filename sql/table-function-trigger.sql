@@ -76,7 +76,7 @@ drop table if exists simples_task cascade;
 create table simples_task
 (
     id           serial primary key,
-    plain_id     serial,
+    plan_id      serial,
     scheduler_id serial,
     start_time   timestamptz not null default now(),
     end_time     timestamptz,
@@ -87,11 +87,11 @@ create table simples_task
     error_msg    text
 );
 comment on table simples_task is '任务列表';
-comment on column simples_task.plain_id is '计划id';
+comment on column simples_task.plan_id is '计划id';
 comment on column simples_task.scheduler_id is '客户端id';
 comment on column simples_task.start_time is '开始时间';
 comment on column simples_task.end_time is '结束时间';
-comment on column simples_task.action_name is '动作名称，和plain_id关联的数据的action_name一致';
+comment on column simples_task.action_name is '动作名称，和plan_id关联的数据的action_name一致';
 comment on column simples_task.init_data is '初始化数据';
 comment on column simples_task.status is '状态';
 comment on column simples_task.error_msg is '错误信息';
@@ -464,7 +464,7 @@ begin
     end if;
 
 --     重新启用计划时清空错误计数
-    if record_new.status = 'active' and record_old.status = 'error' then
+    if record_new.status = 'active' and record_old.status <> 'active' then
         record_new.error_times = 0;
         record_new.timeout_times = 0;
     end if;
@@ -475,11 +475,6 @@ begin
     if record_new.allow_error_times < (record_new.timeout_times + record_new.error_times) then
         record_new.status = 'error';
     end if;
-    --     更新执行计数
---     if record_new.total_times = (record_old.total_times + 1) then
---         record_new.remaining_times :=
---                 record_new.remaining_times + 1;
---     end if;
     return record_new;
 end;
 $$;
@@ -638,7 +633,6 @@ begin
             return query with updated as (
                 update simples_plan
                     set
---                         scheduler_id = scheduler.id,
                         executing = true,
                         last_exec_start_time = current_timestamp,
                         last_exec_end_time = current_timestamp,
@@ -647,7 +641,7 @@ begin
                     where id = any (id_arr)
                     returning id,simples_plan.action_name,plan_data,timeout
                 )
-                insert into simples_task (plain_id, scheduler_id, action_name, init_data,
+                insert into simples_task (plan_id, scheduler_id, action_name, init_data,
                                           timeout_time)
                     select upd.id,
                            scheduler.id,
@@ -679,11 +673,9 @@ begin
             update simples_task set status = 'stop', end_time= current_timestamp where id = task_id;
             update simples_plan
             set executing= false,
---                 scheduler_id =null,
                 last_exec_end_time = current_timestamp
-            where id = task.plain_id
+            where id = task.plan_id
               and last_exec_start_time = task.start_time
---               and scheduler_id = task.scheduler_id
             ;
         elsif task.status = 'timeout' then
             update simples_task set end_time = current_timestamp where id = task_id;
@@ -708,24 +700,22 @@ begin
             error_msg = msg
         where id = task_id;
         if task.status = 'start' then
-            select * into plan from simples_plan where id = task.plain_id for update;
---             if plan.scheduler_id = task.scheduler_id then
+            select * into plan from simples_plan where id = task.plan_id for update;
             if plan.last_exec_start_time = task.start_time then
                 update simples_plan
                 set executing          = false,
---                     scheduler_id       = null
                     last_exec_end_time = current_timestamp,
                     error_times        = error_times + 1
-                where id = task.plain_id;
+                where id = task.plan_id;
             else
                 update simples_plan
                 set error_times = error_times + 1
-                where id = task.plain_id;
+                where id = task.plan_id;
             end if;
         elsif task.status = 'timeout' then
             update simples_plan
             set error_times = error_times + 1
-            where id = task.plain_id;
+            where id = task.plan_id;
         end if;
     end if;
 end;
@@ -756,20 +746,17 @@ begin
                   and current_timestamp > timeout_time
                     for update skip locked
         loop
-            select * into plan from simples_plan where id = task.plain_id for update skip locked;
+            select * into plan from simples_plan where id = task.plan_id for update skip locked;
             if found then
                 if plan.last_exec_start_time = task.start_time then
---                     if plan.scheduler_id = task.scheduler_id then
                     update simples_plan
                     set executing     = false,
---                         scheduler_id= null,
---                         last_exec_end_time = current_timestamp,
                         timeout_times = timeout_times + 1
-                    where id = task.plain_id;
+                    where id = task.plan_id;
                 else
                     update simples_plan
                     set timeout_times = timeout_times + 1
-                    where id = task.plain_id;
+                    where id = task.plan_id;
                 end if;
                 update simples_task set status= 'timeout' where id = task.id;
                 plan_id = plan.id;

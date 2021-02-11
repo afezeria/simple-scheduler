@@ -5,6 +5,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.InetAddress
 import java.time.LocalDateTime
+import java.util.*
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -13,6 +14,15 @@ import javax.sql.DataSource
 
 /**
  * @author afezeria
+ * @param dataSource 数据源
+ * @param actionProvider 提供任务实现的接口，
+ * @param maximumPoolSize 线程池最大线程数/该调度器同时执行的任务数的最大值
+ * @param pollInterval 轮询间隔，单位：秒，查询任务的时间间隔，建议为20-60之间
+ * @param batchSize 每次获取任务的数量的最大值，默认等于maximumPoolSize
+ * @param ordAsc 是否按优先级正序查询任务，为false时优先获取优先级低的任务，默认为true
+ * @param planNamePrefix 计划名称前缀，只获取指定前缀的任务，默认为null
+ * @param printStackTraceToErrorMsg 保存错误信息时是否保存异常堆栈，默认为false
+ * @param name 调度器名称，只是方便人查看的名称，可重复，默认为 进程pid@主机名@随机uuid
  */
 class Scheduler(
     private val dataSource: DataSource,
@@ -46,21 +56,46 @@ class Scheduler(
             SynchronousQueue(), ThreadPoolExecutor.AbortPolicy()
         )
         this.name =
-            name ?: "${ProcessHandle.current().pid()}@${InetAddress.getLocalHost().hostName}"
+            name ?: "${
+                ProcessHandle.current().pid()
+            }@${InetAddress.getLocalHost().hostName}@${
+                UUID.randomUUID().toString().replace("-", "")
+            }"
 
     }
 
-
+    /**
+     * 开始获取和执行任务
+     */
     fun start() {
         thread = CoreThread()
         thread.start()
     }
 
+    /**
+     * 停止获取和执行任务
+     */
     fun stop() {
         pool.shutdown()
         thread.interrupt()
     }
 
+    /**
+     * 创建普通计划
+     * @param name 计划名称
+     * @param intervalTime 执行间隔，单位：秒
+     * @param actionName 动作名称
+     * @param timeout 超时时间，单位：秒
+     * @param startTime 计划开始时间
+     * @param endTime 计划结束时间
+     * @param ord 优先级，从0-100，0为最高优先级
+     * @param remainingTimes 剩余执行次数
+     * @param execAfterStart 开始后是否立刻执行，为false时第一次执行时间为计划开始时间+执行间隔秒数
+     * @param allowErrorTimes 允许错误次数，超过指定次数后将停止执行计划
+     * @param serialExec 并行执行，为true时执行间隔从上一次执行时间开始计算，为false时从上一次执行结束时间开始计算
+     * @param planData 计划数据，执行动作时将会作为参数传给动作函数，无要求
+     * @param createUser 创建人，无要求
+     */
     fun createBasicPlan(
         name: String,
         intervalTime: Int,
@@ -75,22 +110,26 @@ class Scheduler(
         serialExec: Boolean = false,
         planData: String? = null,
         createUser: String? = null,
+        remark: String? = null,
     ): PlanInfo {
         dataSource.connection.use {
             val res = it.execute(
                 """
                 insert into simples_plan (type, name, ord, interval_time, remaining_times, action_name, 
                     exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
-                    create_user, plan_data) 
-                values ('basic',?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
+                    create_user, plan_data,remark) 
+                values ('basic',?,?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
             """, name, ord, intervalTime, remainingTimes, actionName,
                 execAfterStart, serialExec, allowErrorTimes, timeout, startTime, endTime,
-                createUser, planData
+                createUser, planData, remark
             )
             return PlanInfo(res[0])
         }
     }
 
+    /**
+     * 更新计划
+     */
     fun updatePlan(plan: PlanInfo): PlanInfo {
         dataSource.connection.use {
             val res = it.execute(
@@ -155,9 +194,25 @@ class Scheduler(
         }
     }
 
+    /**
+     * 创建cron表达式计划
+     * @param name 计划名称
+     * @param cron cron 表达式
+     * @param actionName 动作名称
+     * @param timeout 超时时间，单位：秒
+     * @param startTime 计划开始时间
+     * @param endTime 计划结束时间
+     * @param ord 优先级，从0-100，0为最高优先级
+     * @param remainingTimes 剩余执行次数
+     * @param execAfterStart 开始后是否立刻执行，为false时第一次执行时间为开始时间后第一个符合cron表达式的时间
+     * @param allowErrorTimes 允许错误次数，超过指定次数后将停止执行计划
+     * @param serialExec 并行执行，为true时到达符合表达式的时间时如果有任务正在执行则不执行
+     * @param planData 计划数据，执行动作时将会作为参数传给动作函数，无要求
+     * @param createUser 创建人，无要求
+     */
     fun createCronPlan(
-        cron: String,
         name: String,
+        cron: String,
         actionName: String,
         timeout: Int,
         startTime: LocalDateTime,
@@ -169,17 +224,18 @@ class Scheduler(
         serialExec: Boolean = false,
         planData: String? = null,
         createUser: String? = null,
+        remark: String? = null,
     ): PlanInfo {
         dataSource.connection.use {
             val res = it.execute(
                 """
                 insert into simples_plan (type, name, ord, cron, remaining_times, action_name, 
                     exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
-                    create_user, plan_data) 
-                values ('cron',?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
+                    create_user, plan_data,remark) 
+                values ('cron',?,?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
             """, name, ord, cron, remainingTimes, actionName,
                 execAfterStart, serialExec, allowErrorTimes, timeout, startTime, endTime,
-                createUser, planData
+                createUser, planData, remark
             )
             return PlanInfo(res[0])
         }
