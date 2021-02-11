@@ -1,4 +1,4 @@
-package github.afezeria.simplescheduler
+package com.github.afezeria.simplescheduler
 
 import com.p6spy.engine.spy.P6DataSource
 import com.zaxxer.hikari.HikariConfig

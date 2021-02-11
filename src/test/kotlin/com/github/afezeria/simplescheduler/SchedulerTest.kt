@@ -1,4 +1,4 @@
-package github.afezeria.simplescheduler
+package com.github.afezeria.simplescheduler
 
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe

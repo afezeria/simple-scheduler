@@ -1,6 +1,6 @@
-package github.afezeria.simplescheduler.sql
+package com.github.afezeria.simplescheduler.sql
 
-import github.afezeria.simplescheduler.AbstractContainerTest
+import com.github.afezeria.simplescheduler.AbstractContainerTest
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDateTime

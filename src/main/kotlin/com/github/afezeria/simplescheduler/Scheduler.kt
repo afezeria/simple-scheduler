@@ -1,4 +1,4 @@
-package github.afezeria.simplescheduler
+package com.github.afezeria.simplescheduler
 
 import org.slf4j.LoggerFactory
 import java.io.PrintWriter

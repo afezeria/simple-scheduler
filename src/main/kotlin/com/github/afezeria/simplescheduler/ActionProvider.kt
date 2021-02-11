@@ -1,4 +1,4 @@
-package github.afezeria.simplescheduler
+package com.github.afezeria.simplescheduler
 
 /**
  * @author afezeria

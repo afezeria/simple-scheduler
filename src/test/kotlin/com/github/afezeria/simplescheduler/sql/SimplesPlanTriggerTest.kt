@@ -1,7 +1,7 @@
-package github.afezeria.simplescheduler.sql
+package com.github.afezeria.simplescheduler.sql
 
-import github.afezeria.simplescheduler.AbstractContainerTest
-import github.afezeria.simplescheduler.execute
+import com.github.afezeria.simplescheduler.AbstractContainerTest
+import com.github.afezeria.simplescheduler.execute
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.BeforeEach

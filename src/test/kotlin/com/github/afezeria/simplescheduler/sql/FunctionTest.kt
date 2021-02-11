@@ -1,9 +1,9 @@
-package github.afezeria.simplescheduler.sql
+package com.github.afezeria.simplescheduler.sql
 
-import github.afezeria.simplescheduler.AbstractContainerTest
-import github.afezeria.simplescheduler.PlanInfo
-import github.afezeria.simplescheduler.TaskInfo
-import github.afezeria.simplescheduler.execute
+import com.github.afezeria.simplescheduler.AbstractContainerTest
+import com.github.afezeria.simplescheduler.PlanInfo
+import com.github.afezeria.simplescheduler.TaskInfo
+import com.github.afezeria.simplescheduler.execute
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.maps.shouldContainExactly

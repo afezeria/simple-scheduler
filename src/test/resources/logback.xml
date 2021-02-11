@@ -5,7 +5,7 @@
         </encoder>
     </appender>
 
-    <logger level="debug" name="github.afezeria.simplescheduler">
+    <logger level="debug" name="com.github.afezeria.simplescheduler">
         <appender-ref ref="stdout"/>
     </logger>
     <logger level="debug" name="p6spy">

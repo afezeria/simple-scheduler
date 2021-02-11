@@ -1,4 +1,4 @@
-package github.afezeria.simplescheduler
+package com.github.afezeria.simplescheduler
 
 import org.intellij.lang.annotations.Language
 import org.slf4j.LoggerFactory
@@ -7,7 +7,7 @@ import java.sql.*
 /**
  * @author afezeria
  */
-private val logger = LoggerFactory.getLogger("github.afezeria.simplescheduler.JdbcExtension")
+private val logger = LoggerFactory.getLogger("com.github.afezeria.simplescheduler.JdbcExtension")
 
 internal fun Connection.execute(
     @Language("sql") sql: String,
