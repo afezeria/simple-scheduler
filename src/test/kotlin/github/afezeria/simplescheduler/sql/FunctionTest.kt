@@ -1,9 +1,6 @@
 package github.afezeria.simplescheduler.sql
 
-import com.p6spy.engine.spy.P6DataSource
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-import github.afezeria.simplescheduler.KPostgreSQLContainer
+import github.afezeria.simplescheduler.AbstractContainerTest
 import github.afezeria.simplescheduler.PlanInfo
 import github.afezeria.simplescheduler.TaskInfo
 import github.afezeria.simplescheduler.execute
@@ -12,67 +9,17 @@ import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import org.intellij.lang.annotations.Language
-import org.junit.jupiter.api.*
-import org.testcontainers.containers.BindMode
-import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import javax.sql.DataSource
 
 /**
  * @author afezeria
  */
-class FunctionTest {
-    companion object {
-        lateinit var container: KPostgreSQLContainer
-        lateinit var dataSource: DataSource
-
-        @JvmStatic
-        @BeforeAll
-        fun before() {
-            container = KPostgreSQLContainer("postgres:12.5-alpine")
-                .withFileSystemBind(
-                    "sql", "/docker-entrypoint-initdb.d",
-                    BindMode.READ_ONLY
-                )
-                .withExposedPorts(5432)
-                .waitingFor(
-                    HostPortWaitStrategy()
-                        .withStartupTimeout(Duration.ofSeconds(10))
-                )
-            container.start()
-            dataSource = P6DataSource(
-                HikariDataSource(HikariConfig().apply {
-//                    jdbcUrl =
-//                        "jdbc:postgresql://localhost:5432/test"
-//                    username = "test"
-//                    password = "123456"
-                    jdbcUrl = container.jdbcUrl
-                    username = container.username
-                    password = container.password
-                })
-            )
-        }
-
-        @AfterAll
-        @JvmStatic
-        fun afterAll() {
-            if (this::container.isInitialized) {
-                container.use { }
-            }
-        }
-
-        fun sql(
-            @Language("sql") sql: String,
-            vararg params: Any?
-        ): MutableList<MutableMap<String, Any?>> {
-            return dataSource.connection.use {
-                it.execute(sql, *params)
-            }
-        }
-    }
+class FunctionTest : AbstractContainerTest() {
 
     @BeforeEach
     fun setUp() {
@@ -122,11 +69,12 @@ class FunctionTest {
                 returning *;
             """
             )[0]
+//            task.start_time != plan.last_start_time and current_timestamp > task.timeout_time
             sql(
                 """
                 insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
-                values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'));
+                values (${insPlanRes["id"]},2,'2020-01-02 00:00:00','print','start',('2020-01-02 00:00:00'::timestamptz+20*interval '1 second'));
             """
             )
             sql("select * from simples_f_mark_timeout_task()")
@@ -219,7 +167,7 @@ class FunctionTest {
                 """
                 insert into simples_task (plain_id, scheduler_id, start_time, action_name, 
                     status, timeout_time) 
-                values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
+                values (${insPlanRes["id"]},2,'2020-01-02 00:00:00','print','start',('2020-01-02 00:00:00'::timestamptz+20*interval '1 second'))
                 returning *;
             """
             )[0]
@@ -600,21 +548,31 @@ class FunctionTest {
         fun `get serial tasks`() {
             val insPlanRes = sql(
                 """
-                insert into simples_plan (type, executing,serial_exec,name, interval_time, action_name, timeout, 
-                    start_time,last_exec_start_time,last_exec_end_time,plan_data,total_times,remaining_times) 
+                insert into simples_plan (type, executing,serial_exec,name, interval_time, action_name, 
+                    timeout, start_time,plan_data,total_times,remaining_times) 
                 values 
                 -- 当前有任务正在执行
-                ('basic',true,true,'b',2,'print1',20,'2020-01-01 00:00:00',?,?,'dd',10,10),
+                ('basic',true,true,'b',10,'print1',20,'2020-01-01 00:00:00','dd',10,10),
                 -- 当前没有任务在执行但是以最后结束时间计算还没到下次执行时间
-                ('basic',false,true,'c',2,'print2',20,'2020-01-01 00:00:00',?,?,'dd',10,10),
+                ('basic',false,true,'c',10,'print2',20,'2020-01-01 00:00:00','dd',10,10),
                 -- 没有任务在执行且已经到了执行时间
-                ('basic',false,true,'d',2,'print3',20,'2020-01-01 00:00:00',?,?,'dd',10,10)
+                ('basic',false,true,'d',10,'print3',20,'2020-01-01 00:00:00','dd',10,10)
                 returning *;
-            """,
-                LocalDateTime.now(), LocalDateTime.now(),
-                LocalDateTime.now(), LocalDateTime.now(),
-                LocalDateTime.now().minusSeconds(2), LocalDateTime.now().minusSeconds(2),
-            )[0]
+            """
+            )
+            val now = LocalDateTime.now()
+            sql(
+                "update simples_plan set last_exec_start_time = ? , last_exec_end_time = ? where name = ?",
+                now, now, "b"
+            )
+            sql(
+                "update simples_plan set last_exec_start_time = ? , last_exec_end_time = ? where name = ?",
+                now, now, "c"
+            )
+            sql(
+                "update simples_plan set last_exec_start_time = ? , last_exec_end_time = ? where name = ?",
+                now.minusSeconds(20), now.minusSeconds(15), "d"
+            )
             val res = sql(
                 "select * from simples_f_get_task(?,?,?,?,?,?)",
                 52420430, "abc", 20, 20, null, true

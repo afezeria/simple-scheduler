@@ -7,32 +7,32 @@ import java.time.LocalDateTime
  * @author afezeria
  */
 class PlanInfo(map: Map<String, Any?>) {
-    val id: Int
-    val type: String
-    val cron: String?
-    val name: String
-    val status: String
-    val executing: Boolean
-    val ord: Int
-    val intervalTime: Int?
-    val remainingTimes: Int?
-    val actionName: String
-    val execAfterStart: Boolean
-    val serialExec: Boolean
-    val totalTimes: Int
-    val errorTimes: Int
-    val allowErrorTimes: Int?
-    val timeout: Int
-    val timeoutTimes: Int
-    val startTime: LocalDateTime
-    val endTime: LocalDateTime?
-    val createTime: LocalDateTime
-    val createUser: String?
-    val planData: String?
-    val lastExecStartTime: LocalDateTime
-    val lastExecEndTime: LocalDateTime
-    val nextExecTime: LocalDateTime
-    val remark: String?
+    var id: Int
+    var type: String
+    var cron: String?
+    var name: String
+    var status: String
+    var executing: Boolean
+    var ord: Int
+    var intervalTime: Int?
+    var remainingTimes: Int?
+    var actionName: String
+    var execAfterStart: Boolean
+    var serialExec: Boolean
+    var totalTimes: Int
+    var errorTimes: Int
+    var allowErrorTimes: Int?
+    var timeout: Int
+    var timeoutTimes: Int
+    var startTime: LocalDateTime
+    var endTime: LocalDateTime?
+    var createTime: LocalDateTime
+    var createUser: String?
+    var planData: String?
+    var lastExecStartTime: LocalDateTime
+    var lastExecEndTime: LocalDateTime
+    var nextExecTime: LocalDateTime
+    var remark: String?
 
     init {
         id = map["id"] as Int
@@ -66,12 +66,12 @@ class PlanInfo(map: Map<String, Any?>) {
 }
 
 class SchedulerInfo(map: Map<String, Any?>) {
-    val id: Int
-    val name: String
-    val startTime: LocalDateTime
-    val status: String
-    val checkInterval: Int
-    val lastHeartbeatTime: LocalDateTime
+    var id: Int
+    var name: String
+    var startTime: LocalDateTime
+    var status: String
+    var checkInterval: Int
+    var lastHeartbeatTime: LocalDateTime
 
     init {
         id = map["id"] as Int
@@ -84,16 +84,16 @@ class SchedulerInfo(map: Map<String, Any?>) {
 }
 
 class TaskInfo(map: Map<String, Any?>) {
-    val id: Int
-    val plainId: Int
-    val schedulerId: Int
-    val startTime: LocalDateTime
-    val endTime: LocalDateTime?
-    val actionName: String
-    val initData: String?
-    val status: String
-    val timeoutTime: LocalDateTime
-    val errorMsg: String?
+    var id: Int
+    var plainId: Int
+    var schedulerId: Int
+    var startTime: LocalDateTime
+    var endTime: LocalDateTime?
+    var actionName: String
+    var initData: String?
+    var status: String
+    var timeoutTime: LocalDateTime
+    var errorMsg: String?
 
     init {
         id = map["id"] as Int

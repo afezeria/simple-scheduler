@@ -388,7 +388,7 @@ declare
     next_exec_time timestamptz;
 begin
     if record_new.type = 'cron' then
-        next_exec_time := get_next_execution_time(record_new.cron, record_new.start_time);
+        next_exec_time := simples_f_get_next_execution_time(record_new.cron, record_new.start_time);
     else
         next_exec_time := record_new.start_time + record_new.interval_time * interval '1 second';
     end if;
@@ -618,15 +618,11 @@ begin
             '              or (sp.type = ''basic'' and\n'
             '                  (\n'
             '                          (sp.serial_exec and (not sp.executing)\n'
-            '                              and $3 >\n'
-            '                                  (sp.last_exec_end_time +\n'
-            '                                   sp.interval_time * interval ''1 second'')\n'
+            '                              and ($3 > sp.next_exec_time)\n'
             '                              )\n'
             '                          or\n'
             '                          (not sp.serial_exec and\n'
-            '                           $4 >\n'
-            '                           (sp.last_exec_start_time +\n'
-            '                            sp.interval_time * interval ''1 second'')\n'
+            '                           $4 > sp.next_exec_time\n'
             '                              )\n'
             '                      )\n'
             '                  )\n'

@@ -1,72 +1,18 @@
 package github.afezeria.simplescheduler.sql
 
-import com.p6spy.engine.spy.P6DataSource
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-import github.afezeria.simplescheduler.KPostgreSQLContainer
+import github.afezeria.simplescheduler.AbstractContainerTest
 import github.afezeria.simplescheduler.execute
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import org.intellij.lang.annotations.Language
-import org.junit.jupiter.api.*
-import org.testcontainers.containers.BindMode
-import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy
-import java.time.Duration
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
 import java.time.LocalDateTime
-import javax.sql.DataSource
 
 /**
  * @author afezeria
  */
-class SimplesPlanTriggerTest {
-    companion object {
-        lateinit var container: KPostgreSQLContainer
-        lateinit var dataSource: DataSource
-
-        @JvmStatic
-        @BeforeAll
-        fun before() {
-            container = KPostgreSQLContainer("postgres:12.5-alpine")
-                .withFileSystemBind(
-                    "sql", "/docker-entrypoint-initdb.d",
-                    BindMode.READ_ONLY
-                )
-                .withExposedPorts(5432)
-                .waitingFor(
-                    HostPortWaitStrategy()
-                        .withStartupTimeout(Duration.ofSeconds(10))
-                )
-            container.start()
-            dataSource = P6DataSource(
-                HikariDataSource(HikariConfig().apply {
-                    jdbcUrl =
-                        "jdbc:postgresql://localhost:5432/test"
-                    username = "test"
-                    password = "123456"
-                    jdbcUrl = container.jdbcUrl
-                    username = container.username
-                    password = container.password
-                })
-            )
-        }
-
-        @AfterAll
-        @JvmStatic
-        fun afterAll() {
-            if (this::container.isInitialized) {
-                container.use { }
-            }
-        }
-
-        fun sql(
-            @Language("sql") sql: String,
-            vararg params: Any?
-        ): MutableList<MutableMap<String, Any?>> {
-            return dataSource.connection.use {
-                it.execute(sql, *params)
-            }
-        }
-    }
+class SimplesPlanTriggerTest : AbstractContainerTest() {
 
     @BeforeEach
     fun setUp() {

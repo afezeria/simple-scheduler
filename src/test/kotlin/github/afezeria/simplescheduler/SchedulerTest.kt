@@ -1,69 +1,16 @@
 package github.afezeria.simplescheduler
 
-import com.p6spy.engine.spy.P6DataSource
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
-import org.intellij.lang.annotations.Language
-import org.junit.jupiter.api.*
-import org.testcontainers.containers.BindMode
-import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy
-import java.time.Duration
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import java.time.LocalDateTime
-import javax.sql.DataSource
 
 /**
  * @author afezeria
  */
-internal class SchedulerTest {
-    companion object {
-        lateinit var container: KPostgreSQLContainer
-        lateinit var dataSource: DataSource
-
-        @JvmStatic
-        @BeforeAll
-        fun before() {
-            container = KPostgreSQLContainer("postgres:12.5-alpine")
-                .withFileSystemBind(
-                    "sql", "/docker-entrypoint-initdb.d",
-                    BindMode.READ_ONLY
-                )
-                .withExposedPorts(5432)
-                .waitingFor(
-                    HostPortWaitStrategy()
-                        .withStartupTimeout(Duration.ofSeconds(10))
-                )
-            container.start()
-            dataSource = P6DataSource(
-                HikariDataSource(HikariConfig().apply {
-                    jdbcUrl =
-                        "jdbc:postgresql://localhost:5432/test"
-                    username = "test"
-                    password = "123456"
-                    jdbcUrl = container.jdbcUrl
-                    username = container.username
-                    password = container.password
-                })
-            )
-        }
-
-        @AfterAll
-        @JvmStatic
-        fun afterAll() {
-            if (this::container.isInitialized) {
-                container.use { }
-            }
-        }
-
-        fun sql(
-            @Language("sql") sql: String,
-            vararg params: Any?
-        ): MutableList<MutableMap<String, Any?>> {
-            return dataSource.connection.use {
-                it.execute(sql, *params)
-            }
-        }
-    }
+internal class SchedulerTest : AbstractContainerTest() {
 
     lateinit var scheduler: Scheduler
 
@@ -93,7 +40,7 @@ internal class SchedulerTest {
             pollInterval = 20,
         )
         scheduler.start()
-        waitSeconds(2)
+        Thread.sleep(2_000)
         val res = sql("select * from simples_scheduler")
         res.size shouldBe 1
         res[0].apply {
@@ -121,7 +68,7 @@ internal class SchedulerTest {
             remainingTimes = 3,
             execAfterStart = true,
         )
-        waitSeconds(10)
+        Thread.sleep(10_000)
         list.size shouldBe 3
         scheduler.stop()
     }
@@ -145,7 +92,7 @@ internal class SchedulerTest {
             startTime = LocalDateTime.now(),
             remainingTimes = 1,
         )
-        waitSeconds(5)
+        Thread.sleep(5_000)
         val planInfo = sql("select * from simples_plan where id = ?", plan.id).run {
             size shouldBe 1
             PlanInfo(get(0))
@@ -177,8 +124,57 @@ internal class SchedulerTest {
             remainingTimes = null,
             serialExec = false,
         )
-        waitSeconds(2)
+        Thread.sleep(2_000)
         list.size shouldBe 1
         scheduler.stop()
+    }
+
+    @Test
+    fun `multi client test`() {
+        val list = mutableListOf<String>()
+        val c1 = Scheduler(
+            dataSource = dataSource,
+            actionProvider = { { list.add("abc") } },
+            maximumPoolSize = 10,
+            pollInterval = 3,
+        )
+        val c2 = Scheduler(
+            dataSource = dataSource,
+            actionProvider = { { list.add("def") } },
+            maximumPoolSize = 10,
+            pollInterval = 3,
+        )
+        c1.createBasicPlan(
+            name = "test1",
+            intervalTime = 2,
+            actionName = "abc",
+            timeout = 2,
+            startTime = LocalDateTime.now(),
+            execAfterStart = true,
+        )
+        c1.start()
+        Thread.sleep(2000)
+        c2.start()
+        Thread.sleep(10_000)
+//        执行流程：
+//        创建任务，任务立刻执行
+//        0s c1 启动并拉取到一条任务，任务下次执行时间为2s
+//        1s
+//        2s c2 启动并拉取到一条任务，下次执行时间为4s
+//        3s c1 拉取任务，返回任务条数0
+//        4s
+//        5s c2 拉取到一条任务，下次执行时间7s
+//        6s c1 拉取任务，返回任务条数0
+//        7s
+//        8s c2 拉取到一条任务，下次执行时间10s
+//        9s c1 拉取任务，返回任务条数0
+//       10s
+//       11s c2 拉取到一条任务，下次执行时间10s
+//       12s 等待结束
+        list.size shouldBe 5
+        list shouldContainExactly listOf("abc", "def", "def", "def", "def")
+        c1.stop()
+        c2.stop()
+
     }
 }
