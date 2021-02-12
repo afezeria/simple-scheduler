@@ -36,5 +36,22 @@ class CronTest : AbstractContainerTest() {
         sql(
             "select simples_f_get_next_execution_time('5/10 6-10 ? 8 6,1','2021-01-01 00:00:00') as a"
         )[0]["a"] shouldBe LocalDateTime.of(2021, 8, 2, 6, 5, 0)
+        sql(
+            "select simples_f_get_next_execution_time('* 5-10,7/4 9,20,3 * ?','2021-02-12 11:12:03') as a"
+        )[0]["a"] shouldBe LocalDateTime.of(2021, 2, 20, 5, 0)
+
+        sql(
+            "select simples_f_get_next_execution_time('* 5-10,7/4 ? * 2L,5L','2021-02-28 11:12:03') as a"
+        )[0]["a"] shouldBe LocalDateTime.of(2021, 3, 26, 5, 0)
+        sql(
+            "select simples_f_get_next_execution_time('* 5-10,7/4 ? * 2L,5','2021-02-28 11:12:03') as a"
+        )[0]["a"] shouldBe LocalDateTime.of(2021, 3, 5, 5, 0)
+        sql(
+            "select simples_f_get_next_execution_time('* 5-10,7/4 20,L * ?','2021-02-12 11:12:03') as a"
+        )[0]["a"] shouldBe LocalDateTime.of(2021, 2, 20, 5, 0)
+        sql(
+            "select simples_f_get_next_execution_time('* 5-10,7/4 L * ?','2021-02-12 11:12:03') as a"
+        )[0]["a"] shouldBe LocalDateTime.of(2021, 2, 28, 5, 0)
+
     }
 }

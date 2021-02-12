@@ -146,6 +146,11 @@ declare
 --     为true表示忽略dayOfWeek(不判断dayOfWeek）,为false表示忽略day（此时day下界永远为1）
     ignore_dow     bool;
     loop_count     int    := 0;
+--     每月的天数
+    days_of_month  int;
+    last_dows      int[];
+    tmp1_arr       int[]=array []::int[];
+    tmp2_arr       int[]=array []::int[];
 begin
     if array_length(cron_item, 1) <> 5 then
         raise exception 'invalid cron expression, expression can only 5 item';
@@ -171,91 +176,139 @@ begin
     else
         raise exception 'invalid cron expression, day and day_of_week cannot be meaningful at the same time';
     end if;
-    <<l1>>
+    a_week_day_arr = simples_f_filter_arr_in_range(
+            simples_f_parse_cron_sub_expr_and_get_range('day_of_week', expr_dow, null, 0, 6),
+            null, null
+        );
+    select array(select substring((regexp_matches(expr_dow, '(\d?L)', 'g'))[1]
+                                  from 1 for 1))
+    into last_dows;
+--     raise notice 'week %',a_week_day_arr;
+    <<lyear>>
     loop
-        loop_count = loop_count + 1;
-        if loop_count > 300 then
-            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-        end if;
-        a_week_day_arr = simples_f_filter_arr_in_range(
-                simples_f_parse_cron_sub_expr_and_get_range('day_of_week', expr_dow, null, 0, 6),
-                null, null
-            );
-        -- raise notice 'week %',a_week_day_arr;
         a_month_arr = simples_f_filter_arr_in_range(
                 simples_f_parse_cron_sub_expr_and_get_range('month', expr_month, null, 1, 12),
                 l_month, null
             );
-        -- raise notice 'month %',a_month_arr;
-        if array_length(a_month_arr, 1) is null then
-            n_year = n_year + 1;
-            l_month = 1;
+--         raise notice 'month %',a_month_arr;
+        if a_month_arr[1] > l_month then
             l_day = 1;
             l_hour = 0;
             l_minute = 0;
-            continue;
         end if;
-        a_day_arr = simples_f_filter_arr_in_range(
-                simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1, 31),
-                l_day,
---             取当前月份
-                extract(days FROM date_trunc('month', make_date(n_year, a_month_arr[0], 1)) +
-                                  interval '1 month - 1 day')::int
-            );
-        -- raise notice 'day %',a_day_arr;
-        if array_length(a_day_arr, 1) is null then
-            l_month = l_month + 1;
-            l_day = 1;
-            l_hour = 0;
-            l_minute = 0;
-            continue;
-        end if;
-
-        a_hour_arr = simples_f_filter_arr_in_range(
-                simples_f_parse_cron_sub_expr_and_get_range('hour', expr_hour, null, 0, 23),
-                l_hour, null
-            );
-        -- raise notice 'hour %',a_hour_arr;
-        if array_length(a_hour_arr, 1) is null then
-            l_day = l_day + 1;
-            l_hour = 0;
-            l_minute = 0;
-            continue;
-        end if;
-        a_minute_arr = simples_f_filter_arr_in_range(
-                simples_f_parse_cron_sub_expr_and_get_range('minute', expr_minute, null, 0, 59),
-                l_minute, null
-            );
-        -- raise notice 'minute %',a_minute_arr;
-        if array_length(a_minute_arr, 1) is null then
-            l_hour = l_hour + 1;
-            l_minute = 0;
-            continue;
-        end if;
-        n_week_day = a_week_day_arr[1];
-        n_month = a_month_arr[1];
-        n_day = a_day_arr[1];
-        n_hour = a_hour_arr[1];
-
-        foreach n_minute in array a_minute_arr
+        <<lmonth>>
+        foreach n_month in array a_month_arr
             loop
-                n_timestamptz =
-                        make_timestamptz(n_year, n_month, n_day, n_hour, n_minute, 0);
-
-                if not ignore_dow then
-                    if array_position(a_week_day_arr,
-                                      extract(dow from n_timestamptz)::int) is null then
-                        l_day = l_day + 1;
-                        l_hour = 0;
-                        l_minute = 0;
-                        continue l1;
+                days_of_month = extract(days from simples_f_last_day_of_month(
+                        make_date(n_year, n_month, 1)))::int;
+                a_day_arr = simples_f_filter_arr_in_range(
+                        simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1, 31),
+                        l_day,
+--             取当前月份
+                        days_of_month
+                    );
+                --                 raise notice 'day %',a_day_arr;
+--                 raise notice 'days_of_month %',days_of_month;
+                if position('L' in expr_day) > 0 then
+--                     添加每月最后一天
+                    if a_day_arr is null then
+                        a_day_arr = array [days_of_month];
+                    else
+                        a_day_arr = array_append(a_day_arr, days_of_month);
                     end if;
                 end if;
-                if n_timestamptz > start_time then
-                    return n_timestamptz;
+--                 raise notice 'day1 %',a_day_arr;
+                if not ignore_dow then
+                    if array_length(a_week_day_arr, 1) <> 0 then
+                        select array(select t2.d
+                                     from (select extract(dow from make_date(n_year, n_month, d))::int as dow,
+                                                  d
+                                           from unnest(a_day_arr) t(d)) t2
+                                     where dow = any (a_week_day_arr))
+                        into tmp1_arr;
+                        if tmp1_arr is null then
+                            tmp1_arr = array []::int[];
+                        end if;
+                    end if;
+--                     raise notice 'tmp1 %',tmp1_arr;
+                    if array_length(last_dows, 1) <> 0 then
+                        select array_agg(d)
+                        into tmp2_arr
+                        from (select d
+                              from (select extract(dow from make_date(n_year, n_month, d))::int as dow,
+                                           d
+                                    from unnest(a_day_arr) as t(d)
+                                    order by d desc) t2
+                              where dow = any (last_dows)
+                              limit array_length(last_dows, 1)) t;
+                        if tmp2_arr is null then
+                            tmp2_arr = array []::int[];
+                        end if;
+--                         raise notice 'tmp2 %',tmp2_arr;
+                    end if;
+                    select array_agg(i)
+                    into a_day_arr
+                    from (select distinct *
+                          from unnest(tmp1_arr || tmp2_arr) as t(i)
+                          order by i) t2(i);
+                    if a_day_arr is null then
+                        a_day_arr = array []::int[];
+                    end if;
+--                     raise notice 'day4 %',a_day_arr;
+
                 end if;
+                if a_day_arr[1] > l_day then
+                    l_hour = 0;
+                    l_minute = 0;
+                end if;
+                <<lday>>
+                foreach n_day in array a_day_arr
+                    loop
+                        a_hour_arr = simples_f_filter_arr_in_range(
+                                simples_f_parse_cron_sub_expr_and_get_range('hour', expr_hour, null,
+                                                                            0, 23),
+                                l_hour, null
+                            );
+--                         raise notice 'hour %',a_hour_arr;
+                        if a_hour_arr[1] > l_hour then
+                            l_minute = 0;
+                        end if;
+                        foreach n_hour in array a_hour_arr
+                            loop
+                                a_minute_arr = simples_f_filter_arr_in_range(
+                                        simples_f_parse_cron_sub_expr_and_get_range('minute',
+                                                                                    expr_minute,
+                                                                                    null, 0, 59),
+                                        l_minute, null
+                                    );
+--                                 raise notice 'minute %',a_minute_arr;
+                                foreach n_minute in array a_minute_arr
+                                    loop
+                                        loop_count = loop_count + 1;
+                                        if loop_count > 300 then
+                                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+                                        end if;
+                                        n_timestamptz =
+                                                make_timestamptz(n_year, n_month, n_day, n_hour,
+                                                                 n_minute, 0);
+--                                         raise notice '%',n_timestamptz;
+                                        if n_timestamptz > start_time then
+                                            return n_timestamptz;
+                                        end if;
+                                    end loop;
+                                l_minute = 0;
+                            end loop;
+                        l_hour = 0;
+                        l_minute = 0;
+                    end loop;
+                l_day = 1;
+                l_hour = 0;
+                l_minute = 0;
             end loop;
-        l_hour = l_hour + 1;
+        n_year = n_year + 1;
+        l_month = 1;
+        l_day = 1;
+        l_hour = 0;
         l_minute = 0;
     end loop;
 end;
@@ -263,9 +316,19 @@ $$;
 
 comment on function simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
 
+create or replace function simples_f_last_day_of_month(date) returns date
+    language plpgsql
+    immutable strict as
+$$
+begin
+    return date_trunc('month', $1) + interval '1 month' - interval '1 day';
+end;
+$$;
+
 
 create or replace function simples_f_filter_arr_in_range(source int[], min int, max int) returns int[]
-    language plpgsql as
+    language plpgsql
+    immutable as
 $$
 declare
     arr int[];
@@ -315,7 +378,7 @@ begin
         end if;
     end if;
     if regexp_match(sub_expr,
-                    '^(\?|\*|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
+                    '^(\?|\*|\d?L|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
         raise exception 'invalid % group: %',d_name,sub_expr;
     end if;
     if length(sub_expr) = 1 then
@@ -323,9 +386,15 @@ begin
             return ARRAY(SELECT * FROM generate_series(lp, rp));
         elsif sub_expr = '?' then
             if d_name != 'day' and d_name != 'day_of_week' then
-                raise exception 'only day and day_of_week group support ''?''';
+                raise exception '''?'' option is not valid here';
             else
                 return ARRAY(SELECT * FROM generate_series(lp, rp));
+            end if;
+        elsif sub_expr = 'L' then
+            if d_name != 'day' then
+                raise exception '''L'' option is not valid here';
+            else
+                return array []::int[];
             end if;
         else
             r_left = sub_expr::int;
@@ -335,6 +404,13 @@ begin
             return array [sub_expr::int];
         end if;
     elsif length(sub_expr) = 2 then
+        if regexp_match(sub_expr, '^\d?L$') is not null then
+            if d_name != 'day_of_week' then
+                raise exception '''L'' option is not valid here';
+            else
+                return array []::int[];
+            end if;
+        end if;
         r_left = sub_expr::int;
         if r_left < lp or r_left > rp then
             raise exception 'invalid % group, % number must be between % and %',d_name,d_name,lp,rp;
@@ -675,8 +751,7 @@ begin
             set executing= false,
                 last_exec_end_time = current_timestamp
             where id = task.plan_id
-              and last_exec_start_time = task.start_time
-            ;
+              and last_exec_start_time = task.start_time;
         elsif task.status = 'timeout' then
             update simples_task set end_time = current_timestamp where id = task_id;
         end if;
