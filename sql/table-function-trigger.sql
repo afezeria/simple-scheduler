@@ -132,25 +132,26 @@ declare
 --     1-31
     n_day          int;
 --     0-23
-    n_hour         int;
+    n_hour        int;
 --     0-59
-    n_minute       int;
-    n_year         int    := extract(year from start_time);
+    n_minute      int;
+    n_year        int    := extract(year from start_time);
 --     表达式
-    expr_dow       text;
-    expr_month     text;
-    expr_day       text;
-    expr_hour      text;
-    expr_minute    text;
-    n_timestamptz  timestamptz;
+    expr_dow      text;
+    expr_month    text;
+    expr_day      text;
+    expr_hour     text;
+    expr_minute   text;
+    n_timestamptz timestamptz;
 --     为true表示忽略dayOfWeek(不判断dayOfWeek）,为false表示忽略day（此时day下界永远为1）
-    ignore_dow     bool;
-    loop_count     int    := 0;
+    ignore_dow    bool;
+    loop_count    int    := 0;
 --     每月的天数
-    days_of_month  int;
-    last_dows      int[];
-    tmp1_arr       int[]=array []::int[];
-    tmp2_arr       int[]=array []::int[];
+    days_of_month int;
+    last_dows     int[];
+    tmp1_arr      int[]=array []::int[];
+    tmp2_arr      int[]=array []::int[];
+    tmp3_arr      int[]=array []::int[];
 begin
     if array_length(cron_item, 1) <> 5 then
         raise exception 'invalid cron expression, expression can only 5 item';
@@ -253,7 +254,11 @@ begin
                         end if;
 --                         raise notice 'tmp2 %',tmp2_arr;
                     end if;
-                    a_day_arr = tmp1_arr || tmp2_arr;
+                    if position('#' in expr_dow) is not null then
+                        tmp3_arr = simples_f_get_day_numbers_by_cron_hash_option(
+                                expr_dow, n_year, n_month);
+                    end if;
+                    a_day_arr = tmp1_arr || tmp2_arr || tmp3_arr;
 --                     raise notice 'day4 %',a_day_arr;
                 end if;
                 select array_agg(i)
@@ -321,6 +326,40 @@ $$;
 
 comment on function simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
 
+create or replace function simples_f_get_day_numbers_by_cron_hash_option(dow_expr text, c_year int, c_month int) returns int[]
+    language plpgsql
+    immutable as
+$$
+declare
+    dow_arr  int[];
+    th_arr   int[];
+    last_day int;
+    res      int[];
+begin
+    select array_agg(d), array_agg(th)
+    into dow_arr,th_arr
+    from (select substring(i from 1 for 1) as d, substring(i from 3 for 3) as th
+          from (select (regexp_matches(dow_expr, '[0-6]#[1-4]', 'g'))[1]) t(i)) t1;
+    if array_length(dow_arr, 1) is null then
+        return array []::int[];
+    end if;
+
+    last_day = extract(days from simples_f_last_day_of_month(c_year, c_month))::int;
+    select array_agg(i)
+    into res
+    from (
+             select t.i, t.part, rank() over (partition by t.part order by i) as rank
+             from (select i, extract(dow from make_date(c_year, c_month, i))::int as part
+                   from generate_series(1, last_day) it(i)) t
+             order by t.i
+         ) t1(i, part, rank)
+             inner join (select * from unnest(dow_arr, th_arr)) t2(wee, th)
+                        on t2.wee = t1.part and t2.th = t1.rank;
+    return res;
+end;
+$$;
+comment on function simples_f_get_day_numbers_by_cron_hash_option(text, int, int)
+    is '处理星期模式中的W选项，给定cron表达式星期部分和年月，返回符合#选项的天的数字，没有#选项时返回长度为0的数组';
 
 
 create or replace function simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int) returns int[]
@@ -429,7 +468,7 @@ begin
         end if;
     end if;
     if regexp_match(sub_expr,
-                    '^(\?|\*|\d?L|\d{1,2}W|LW|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
+                    '^(\?|\*|\d?L|\d{1,2}W|LW|\d#\d|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
         raise exception 'invalid % group: %',d_name,sub_expr;
     end if;
     if length(sub_expr) = 1 then
@@ -478,6 +517,13 @@ begin
         if regexp_match(sub_expr, '^\d\dW$') is not null then
             if d_name != 'day' then
                 raise exception '''W'' option is not valid here';
+            else
+                return array []::int[];
+            end if;
+        end if;
+        if regexp_match(sub_expr, '^\d#\d$') is not null then
+            if d_name != 'day_of_week' then
+                raise exception '''#'' option is not valid here';
             else
                 return array []::int[];
             end if;
