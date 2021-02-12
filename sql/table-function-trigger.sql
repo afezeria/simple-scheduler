@@ -200,12 +200,17 @@ begin
         foreach n_month in array a_month_arr
             loop
                 days_of_month = extract(days from simples_f_last_day_of_month(
-                        make_date(n_year, n_month, 1)))::int;
+                        n_year, n_month))::int;
                 a_day_arr = simples_f_filter_arr_in_range(
-                        simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1, 31),
-                        l_day,
+                            simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1,
+                                                                        31) ||
+--                             获取匹配W的天的编号
+                            simples_f_get_day_numbers_by_cron_w_option(
+                                    expr_day, n_year,
+                                    n_month),
+                            l_day,
 --             取当前月份
-                        days_of_month
+                            days_of_month
                     );
                 --                 raise notice 'day %',a_day_arr;
 --                 raise notice 'days_of_month %',days_of_month;
@@ -219,7 +224,8 @@ begin
                 end if;
 --                 raise notice 'day1 %',a_day_arr;
                 if not ignore_dow then
-                    if array_length(a_week_day_arr, 1) <> 0 then
+                    if array_length(a_week_day_arr, 1) is not null then
+--                         处理指定星期的情况
                         select array(select t2.d
                                      from (select extract(dow from make_date(n_year, n_month, d))::int as dow,
                                                   d
@@ -231,7 +237,8 @@ begin
                         end if;
                     end if;
 --                     raise notice 'tmp1 %',tmp1_arr;
-                    if array_length(last_dows, 1) <> 0 then
+                    if array_length(last_dows, 1) is not null then
+--                         处理星期中有L选项的情况
                         select array_agg(d)
                         into tmp2_arr
                         from (select d
@@ -246,16 +253,14 @@ begin
                         end if;
 --                         raise notice 'tmp2 %',tmp2_arr;
                     end if;
-                    select array_agg(i)
-                    into a_day_arr
-                    from (select distinct *
-                          from unnest(tmp1_arr || tmp2_arr) as t(i)
-                          order by i) t2(i);
-                    if a_day_arr is null then
-                        a_day_arr = array []::int[];
-                    end if;
+                    a_day_arr = tmp1_arr || tmp2_arr;
 --                     raise notice 'day4 %',a_day_arr;
-
+                end if;
+                select array_agg(i)
+                into a_day_arr
+                from (select distinct i from unnest(a_day_arr) t(i) order by i) t;
+                if a_day_arr is null then
+                    a_day_arr = array []::int[];
                 end if;
                 if a_day_arr[1] > l_day then
                     l_hour = 0;
@@ -316,14 +321,60 @@ $$;
 
 comment on function simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
 
-create or replace function simples_f_last_day_of_month(date) returns date
+
+
+create or replace function simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int) returns int[]
+    language plpgsql
+    immutable as
+$$
+declare
+    target_days int[];
+    last_day    int;
+    res         int[];
+begin
+    if position('W' in day_expr) = 0 then
+        return array []::int[];
+    end if;
+    select array_agg(i)
+    into target_days
+    from (
+             select substring((regexp_matches(day_expr, '(?<!\d)\dW', 'g'))[1] from 1 for 1)::int
+             union
+             select substring((regexp_matches(day_expr, '\d\dW', 'g'))[1] from 1 for 2)::int
+         ) t(i);
+    if target_days is null then
+        target_days = array []::int[];
+    end if;
+    last_day = extract(days from simples_f_last_day_of_month(c_year, c_month))::int;
+    if position('LW' in '') > 0 then
+        target_days = target_days || last_day;
+    end if;
+    select array_agg(x)
+    into res
+    from (select x, rank() over (partition by y order by abs(x - y)) as rank
+          from (
+              select i
+              from generate_series(1, last_day) t(i)
+              where extract(dow from make_date(c_year, c_month, i)) between 1 and 5
+          ) t1(x)
+             , (select unnest(target_days)) t2(y)
+          group by (t2.y, t1.x)) t
+    where rank = 1;
+    return res;
+end;
+$$;
+comment on function simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int)
+    is '处理日模式中的W选项，给定cron表达式的日部分和年月，返回符合W选项的天的数字，没有W选项时返回长度为0的数组';
+
+create or replace function simples_f_last_day_of_month(year int, month int) returns date
     language plpgsql
     immutable strict as
 $$
 begin
-    return date_trunc('month', $1) + interval '1 month' - interval '1 day';
+    return date_trunc('month', make_date(year, month, 1)) + interval '1 month' - interval '1 day';
 end;
 $$;
+comment on function simples_f_last_day_of_month(int, int) is '根据年月获取最后一天的日期';
 
 
 create or replace function simples_f_filter_arr_in_range(source int[], min int, max int) returns int[]
@@ -378,7 +429,7 @@ begin
         end if;
     end if;
     if regexp_match(sub_expr,
-                    '^(\?|\*|\d?L|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
+                    '^(\?|\*|\d?L|\d{1,2}W|LW|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
         raise exception 'invalid % group: %',d_name,sub_expr;
     end if;
     if length(sub_expr) = 1 then
@@ -404,6 +455,13 @@ begin
             return array [sub_expr::int];
         end if;
     elsif length(sub_expr) = 2 then
+        if regexp_match(sub_expr, '^(\dW|LW)$') is not null then
+            if d_name != 'day' then
+                raise exception '''W'' option is not valid here';
+            else
+                return array []::int[];
+            end if;
+        end if;
         if regexp_match(sub_expr, '^\d?L$') is not null then
             if d_name != 'day_of_week' then
                 raise exception '''L'' option is not valid here';
@@ -416,6 +474,14 @@ begin
             raise exception 'invalid % group, % number must be between % and %',d_name,d_name,lp,rp;
         end if;
         return array [sub_expr::int];
+    elsif length(sub_expr) = 3 then
+        if regexp_match(sub_expr, '^\d\dW$') is not null then
+            if d_name != 'day' then
+                raise exception '''W'' option is not valid here';
+            else
+                return array []::int[];
+            end if;
+        end if;
     end if;
     if position('-' in sub_expr) <> 0 then
         e_type = 'range';
