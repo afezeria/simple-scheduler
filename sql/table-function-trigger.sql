@@ -125,43 +125,36 @@ declare
     a_hour_arr     int[];
     a_minute_arr   int[];
 --     新的
---     0-6
-    n_week_day     int;
 --     1-12
     n_month        int;
 --     1-31
     n_day          int;
 --     0-23
-    n_hour        int;
+    n_hour         int;
 --     0-59
-    n_minute      int;
-    n_year        int    := extract(year from start_time);
+    n_minute       int;
+    n_year         int    := extract(year from start_time);
 --     表达式
-    expr_dow      text;
-    expr_month    text;
-    expr_day      text;
-    expr_hour     text;
-    expr_minute   text;
-    n_timestamptz timestamptz;
+    expr_dow       text;
+    expr_month     text;
+    expr_day       text;
+    expr_hour      text;
+    expr_minute    text;
+    n_timestamptz  timestamptz;
 --     为true表示忽略dayOfWeek(不判断dayOfWeek）,为false表示忽略day（此时day下界永远为1）
-    ignore_dow    bool;
-    loop_count    int    := 0;
+    ignore_dow     bool;
+    loop_count     int    := 0;
 --     每月的天数
-    days_of_month int;
-    last_dows     int[];
-    tmp1_arr      int[]=array []::int[];
-    tmp2_arr      int[]=array []::int[];
-    tmp3_arr      int[]=array []::int[];
+    days_of_month  int;
+    last_dows      int[];
+    tmp1_arr       int[]=array []::int[];
+    tmp2_arr       int[]=array []::int[];
+    tmp3_arr       int[]=array []::int[];
 begin
-    if array_length(cron_item, 1) <> 5 then
-        raise exception 'invalid cron expression, expression can only 5 item';
-    end if;
-    if cron is null then
-        raise exception 'cron expression cannot be null';
-    end if;
     if start_time is null then
         raise exception 'start_time cannot be null';
     end if;
+    perform simples_f_cron_expr_check(cron);
     expr_dow = cron_item[5];
     expr_month = cron_item[4];
     expr_day = cron_item[3];
@@ -177,7 +170,7 @@ begin
     else
         raise exception 'invalid cron expression, day and day_of_week cannot be meaningful at the same time';
     end if;
-    a_week_day_arr = simples_f_filter_arr_in_range(
+    a_week_day_arr = simples_f_filter_and_sort_arr_in_range(
             simples_f_parse_cron_sub_expr_and_get_range('day_of_week', expr_dow, null, 0, 6),
             null, null
         );
@@ -185,9 +178,8 @@ begin
                                   from 1 for 1))
     into last_dows;
 --     raise notice 'week %',a_week_day_arr;
-    <<lyear>>
     loop
-        a_month_arr = simples_f_filter_arr_in_range(
+        a_month_arr = simples_f_filter_and_sort_arr_in_range(
                 simples_f_parse_cron_sub_expr_and_get_range('month', expr_month, null, 1, 12),
                 l_month, null
             );
@@ -197,12 +189,11 @@ begin
             l_hour = 0;
             l_minute = 0;
         end if;
-        <<lmonth>>
         foreach n_month in array a_month_arr
             loop
                 days_of_month = extract(days from simples_f_last_day_of_month(
                         n_year, n_month))::int;
-                a_day_arr = simples_f_filter_arr_in_range(
+                a_day_arr = simples_f_filter_and_sort_arr_in_range(
                             simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1,
                                                                         31) ||
 --                             获取匹配W的天的编号
@@ -271,10 +262,9 @@ begin
                     l_hour = 0;
                     l_minute = 0;
                 end if;
-                <<lday>>
                 foreach n_day in array a_day_arr
                     loop
-                        a_hour_arr = simples_f_filter_arr_in_range(
+                        a_hour_arr = simples_f_filter_and_sort_arr_in_range(
                                 simples_f_parse_cron_sub_expr_and_get_range('hour', expr_hour, null,
                                                                             0, 23),
                                 l_hour, null
@@ -285,7 +275,7 @@ begin
                         end if;
                         foreach n_hour in array a_hour_arr
                             loop
-                                a_minute_arr = simples_f_filter_arr_in_range(
+                                a_minute_arr = simples_f_filter_and_sort_arr_in_range(
                                         simples_f_parse_cron_sub_expr_and_get_range('minute',
                                                                                     expr_minute,
                                                                                     null, 0, 59),
@@ -294,10 +284,6 @@ begin
 --                                 raise notice 'minute %',a_minute_arr;
                                 foreach n_minute in array a_minute_arr
                                     loop
-                                        loop_count = loop_count + 1;
-                                        if loop_count > 300 then
-                                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-                                        end if;
                                         n_timestamptz =
                                                 make_timestamptz(n_year, n_month, n_day, n_hour,
                                                                  n_minute, 0);
@@ -305,26 +291,147 @@ begin
                                         if n_timestamptz > start_time then
                                             return n_timestamptz;
                                         end if;
+                                        loop_count = loop_count + 1;
+                                        if loop_count > 300 then
+                                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+                                        end if;
                                     end loop;
                                 l_minute = 0;
+                                loop_count = loop_count + 1;
+                                if loop_count > 300 then
+                                    raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+                                end if;
                             end loop;
                         l_hour = 0;
                         l_minute = 0;
+                        loop_count = loop_count + 1;
+                        if loop_count > 300 then
+                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+                        end if;
                     end loop;
                 l_day = 1;
                 l_hour = 0;
                 l_minute = 0;
+                loop_count = loop_count + 1;
+                if loop_count > 300 then
+                    raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+                end if;
             end loop;
         n_year = n_year + 1;
         l_month = 1;
         l_day = 1;
         l_hour = 0;
         l_minute = 0;
+        if loop_count > 300 then
+            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
+        end if;
     end loop;
 end;
 $$;
 
 comment on function simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
+
+create or replace function simples_f_cron_expr_check(cron text) returns void
+    language plpgsql as
+$$
+declare
+    cron_arr      text[]=regexp_split_to_array(cron, '\s+');
+    dow           text;
+    month         text;
+    day           text;
+    hour          text;
+    minute        text;
+    flag          bool;
+    max_days      int;
+    month_to_days int[]=array [31,29,31,30,31,30,31,31,30,31,30,31];
+    tmp_arr       text[];
+begin
+    if cron is null or length(cron) > 100 then
+        raise exception 'cron expression cannot be null and its length cannot be greater than 100';
+    end if;
+
+--     表达式按空格分割后必须有5组
+    if array_length(cron_arr, 1) is null or array_length(cron_arr, 1) <> 5 then
+        raise exception 'invalid cron expression, expression can only 5 item';
+    end if;
+
+    dow = cron_arr[5];
+    if regexp_match(dow, '^(\*|\?|\d(L|[-#/]\d)?(,\d(L|[-#/]\d)?)*)$') is null then
+        raise exception 'invalid day_of_week group, subexpression does not match ^(\*|\?|\d(L|[-#/]\d)?(,\d(L|[-#/]\d)?)*)$';
+    end if;
+    select bool_and(d[1]::int <= 6 and d[1]::int >= 0)
+    into flag
+    from (select regexp_matches(dow, '\d+', 'g')) t(d);
+    if not flag then
+        raise exception 'invalid week group, number must be between 0 and 6';
+    end if;
+
+    month = cron_arr[4];
+    if regexp_match(month, '^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$') is null then
+        raise exception 'invalid month group, subexpression does not match ^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$';
+    end if;
+    select bool_and(d[1]::int <= 12 and d[1]::int >= 1)
+    into flag
+    from (select regexp_matches(month, '\d+', 'g')) t(d);
+    if not flag then
+        raise exception 'invalid month group, number must be between 1 and 12';
+    end if;
+
+--     获取月表达式中包括的月份中可能的最大天数的值
+    if month = '*' then
+        max_days = 31;
+    else
+        select max(month_to_days[d[1]::int])
+        into max_days
+        from (select regexp_matches(month, '\d+', 'g')) t(d);
+        for tmp_arr in select regexp_matches(month, '(\d+)/(\d)', 'g')
+            loop
+                for m in tmp_arr[1]..12 by tmp_arr[2]
+                    loop
+                        if month_to_days[m] > max_days then
+                            max_days = month_to_days[m];
+                        end if;
+                    end loop;
+            end loop;
+    end if;
+
+    day = cron_arr[3];
+    if regexp_match(day,
+                    '^(\*|\?|(LW?|\d\d?(W|[-/]\d\d?)?)(,(LW?|\d\d?(W|[-/]\d\d?)?))*)$') is null then
+        raise exception 'invalid day_of_month group, subexpression does not match ^(\*|\?|(LW?|\d\d?(W|[-/]\d\d?)?)(,(LW?|\d\d?(W|[-/]\d\d?)?))*)$';
+    end if;
+    select bool_and(d[1]::int <= max_days and d[1]::int >= 1)
+    into flag
+    from (select regexp_matches(day, '\d+', 'g')) t(d);
+    if not flag then
+        raise exception 'invalid day_of_month group, in this expression number must be between 1 and %',max_days;
+    end if;
+
+    hour = cron_arr[2];
+    if regexp_match(hour, '^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$') is null then
+        raise exception 'invalid hour group, subexpression does not match ^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$';
+    end if;
+    select bool_and(d[1]::int <= 23 and d[1]::int >= 0)
+    into flag
+    from (select regexp_matches(hour, '\d+', 'g')) t(d);
+    if not flag then
+        raise exception 'invalid hour group, number must be between 0 and 23';
+    end if;
+
+    minute = cron_arr[1];
+    if regexp_match(minute, '^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$') is null then
+        raise exception 'invalid minute group, subexpression does not match ^(\*|\d\d?([-/]\d\d?)?(,\d\d?([-/]\d\d?)?)*)$';
+    end if;
+    select bool_and(d[1]::int <= 59 and d[1]::int >= 0)
+    into flag
+    from (select regexp_matches(minute, '\d+', 'g')) t(d);
+    if not flag then
+        raise exception 'invalid minute group, number must be between 0 and 59';
+    end if;
+end ;
+$$;
+
+
 
 create or replace function simples_f_get_day_numbers_by_cron_hash_option(dow_expr text, c_year int, c_month int) returns int[]
     language plpgsql
@@ -416,7 +523,7 @@ $$;
 comment on function simples_f_last_day_of_month(int, int) is '根据年月获取最后一天的日期';
 
 
-create or replace function simples_f_filter_arr_in_range(source int[], min int, max int) returns int[]
+create or replace function simples_f_filter_and_sort_arr_in_range(source int[], min int, max int) returns int[]
     language plpgsql
     immutable as
 $$
@@ -425,21 +532,25 @@ declare
 begin
     if min is not null then
         if max is not null then
-            select array(select i from unnest(source) as t(i) where i between min and max) into arr;
+            select array(select i
+                         from unnest(source) as t(i)
+                         where i between min and max
+                         order by i)
+            into arr;
         else
-            select array(select i from unnest(source) as t(i) where i >= min) into arr;
+            select array(select i from unnest(source) as t(i) where i >= min order by i) into arr;
         end if;
     else
         if max is not null then
-            select array(select i from unnest(source) as t(i) where i <= max) into arr;
+            select array(select i from unnest(source) as t(i) where i <= max order by i) into arr;
         else
-            arr = source;
+            select array(select i from unnest(source) as t(i) order by i) into arr;
         end if;
     end if;
     return arr;
 end;
 $$;
-comment on function simples_f_filter_arr_in_range(int[], int, int) is '根据区间上界和下界过滤int数组，上界和下界为空';
+comment on function simples_f_filter_and_sort_arr_in_range(int[], int, int) is '根据区间上界和下界过滤int数组，上界和下界为空';
 
 
 create or replace function simples_f_parse_cron_sub_expr_and_get_range(d_name text, expr text, sub_expr text, lp int, rp int) returns int[]
@@ -449,7 +560,6 @@ $$
 declare
     ia      int[];
 --     range/step
-    e_type  text;
     r_left  int;
     r_right int;
 begin
@@ -459,7 +569,7 @@ begin
                          from (
                                   select simples_f_parse_cron_sub_expr_and_get_range(d_name, expr,
                                                                                      x, lp, rp) as i
-                                  from unnest(regexp_split_to_array(expr, ',')) as t(x)
+                                  from regexp_split_to_table(expr, ',') as t(x)
                               ) t)
             into ia;
             return ia;
@@ -467,25 +577,13 @@ begin
             sub_expr := expr;
         end if;
     end if;
-    if regexp_match(sub_expr,
-                    '^(\?|\*|\d?L|\d{1,2}W|LW|\d#\d|\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}|\d{1,2}(,\d{1,2})?)$') is null then
-        raise exception 'invalid % group: %',d_name,sub_expr;
-    end if;
     if length(sub_expr) = 1 then
         if sub_expr = '*' then
             return ARRAY(SELECT * FROM generate_series(lp, rp));
         elsif sub_expr = '?' then
-            if d_name != 'day' and d_name != 'day_of_week' then
-                raise exception '''?'' option is not valid here';
-            else
-                return ARRAY(SELECT * FROM generate_series(lp, rp));
-            end if;
+            return ARRAY(SELECT generate_series(lp, rp));
         elsif sub_expr = 'L' then
-            if d_name != 'day' then
-                raise exception '''L'' option is not valid here';
-            else
-                return array []::int[];
-            end if;
+            return array []::int[];
         else
             r_left = sub_expr::int;
             if r_left < lp then
@@ -494,17 +592,13 @@ begin
             return array [sub_expr::int];
         end if;
     elsif length(sub_expr) = 2 then
-        if regexp_match(sub_expr, '^(\dW|LW)$') is not null then
-            if d_name != 'day' then
-                raise exception '''W'' option is not valid here';
-            else
+        if d_name = 'day' then
+            if sub_expr ~ '^(\d|L)W$' then
                 return array []::int[];
             end if;
         end if;
-        if regexp_match(sub_expr, '^\d?L$') is not null then
-            if d_name != 'day_of_week' then
-                raise exception '''L'' option is not valid here';
-            else
+        if d_name = 'day_of_week' then
+            if sub_expr ~ '^\d?L$' then
                 return array []::int[];
             end if;
         end if;
@@ -514,27 +608,18 @@ begin
         end if;
         return array [sub_expr::int];
     elsif length(sub_expr) = 3 then
-        if regexp_match(sub_expr, '^\d\dW$') is not null then
-            if d_name != 'day' then
-                raise exception '''W'' option is not valid here';
-            else
+        if d_name = 'day' then
+            if sub_expr ~ '^\d\dW$' then
                 return array []::int[];
             end if;
         end if;
-        if regexp_match(sub_expr, '^\d#\d$') is not null then
-            if d_name != 'day_of_week' then
-                raise exception '''#'' option is not valid here';
-            else
+        if d_name = 'day_of_week' then
+            if sub_expr ~ '^\d#\d$' then
                 return array []::int[];
             end if;
         end if;
     end if;
     if position('-' in sub_expr) <> 0 then
-        e_type = 'range';
-    elsif position('/' in sub_expr) <> 0 then
-        e_type = 'step';
-    end if;
-    if e_type = 'range' then
         r_left = (regexp_split_to_array(sub_expr, '-'))[1]::int;
         r_right = (regexp_split_to_array(sub_expr, '-'))[2]::int;
         if r_left < lp or r_left > rp or r_right < lp or r_right > rp then
@@ -544,7 +629,7 @@ begin
             raise exception 'invalid % group, right endpoint must be greater than left endpoint',d_name;
         end if;
         ia = ARRAY(SELECT * FROM generate_series(r_left, r_right));
-    elsif e_type = 'step' then
+    elsif position('/' in sub_expr) <> 0 then
 --         起始值
         r_left = (regexp_split_to_array(sub_expr, '/'))[1]::int;
 --         步长
