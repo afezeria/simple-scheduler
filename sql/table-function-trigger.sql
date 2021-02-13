@@ -356,14 +356,9 @@ begin
     end if;
 
     dow = cron_arr[5];
-    if regexp_match(dow, '^(\*|\?|\d(L|[-#/]\d)?(,\d(L|[-#/]\d)?)*)$') is null then
-        raise exception 'invalid day_of_week group, subexpression does not match ^(\*|\?|\d(L|[-#/]\d)?(,\d(L|[-#/]\d)?)*)$';
-    end if;
-    select bool_and(d[1]::int <= 6 and d[1]::int >= 0)
-    into flag
-    from (select regexp_matches(dow, '\d+', 'g')) t(d);
-    if not flag then
-        raise exception 'invalid week group, number must be between 0 and 6';
+    if regexp_match(dow,
+                    '^(\*|\?|[0-6](L|[-/][0-6]|#[1-4])?(,[0-6](L|[-/][0-6]|#[1-4])?)*)$') is null then
+        raise exception 'invalid day_of_week group, subexpression does not match ^(\*|\?|[0-6](L|[-/][0-6]|#[1-4])?(,[0-6](L|[-/][0-6]|#[1-4])?)*)$';
     end if;
 
     month = cron_arr[4];
