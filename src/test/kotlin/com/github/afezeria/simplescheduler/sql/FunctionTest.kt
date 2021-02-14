@@ -87,35 +87,6 @@ class FunctionTest : AbstractContainerTest() {
             plan.executing shouldBe true
         }
 
-        @Test
-        fun `simples_f_mark_timeout_task function did not get the lock of the plan`() {
-            val insPlanRes = sql(
-                """
-                insert into simples_plan (type, executing,name, interval_time, action_name, timeout, 
-                    start_time,last_exec_start_time,last_exec_end_time) 
-                values ('basic',true,'abc',20,'print',20,'2020-01-01 00:00:00','2021-01-01 00:00:00','2020-01-01 00:00:00') 
-                returning *;
-            """
-            )[0]
-            val insTaskRes = sql(
-                """
-                insert into simples_task (plan_id, scheduler_id, start_time, action_name, 
-                    status, timeout_time) 
-                values (${insPlanRes["id"]},2,'2020-01-01 00:00:00','print','start',('2020-01-01 00:00:00'::timestamptz+20*interval '1 second'))
-                returning *;
-            """
-            )[0]
-            dataSource.connection.use {
-                it.execute("begin;")
-                it.execute("select * from simples_plan where id = ? for update ", insPlanRes["id"])
-                sql("select * from simples_f_mark_timeout_task()")
-                val taskRes = sql("select * from simples_task")[0]
-                val planRes = sql("select * from simples_plan sp")[0]
-                taskRes shouldContainExactly insTaskRes
-                planRes shouldContainExactly insPlanRes
-                it.execute("end;")
-            }
-        }
     }
 
     @Nested

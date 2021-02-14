@@ -144,6 +144,7 @@ declare
 --     为true表示忽略dayOfWeek(不判断dayOfWeek）,为false表示忽略day（此时day下界永远为1）
     ignore_dow     bool;
     loop_count     int    := 0;
+    max_loop_count int    := 300;
 --     每月的天数
     days_of_month  int;
     last_dows      int[];
@@ -178,6 +179,7 @@ begin
                                   from 1 for 1))
     into last_dows;
 --     raise notice 'week %',a_week_day_arr;
+    <<l_year>>
     loop
         a_month_arr = simples_f_filter_and_sort_arr_in_range(
                 simples_f_parse_cron_sub_expr_and_get_range('month', expr_month, null, 1, 12),
@@ -292,40 +294,31 @@ begin
                                             return n_timestamptz;
                                         end if;
                                         loop_count = loop_count + 1;
-                                        if loop_count > 300 then
-                                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-                                        end if;
+                                        exit l_year when loop_count > max_loop_count;
                                     end loop;
                                 l_minute = 0;
                                 loop_count = loop_count + 1;
-                                if loop_count > 300 then
-                                    raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-                                end if;
+                                exit l_year when loop_count > max_loop_count;
                             end loop;
                         l_hour = 0;
                         l_minute = 0;
                         loop_count = loop_count + 1;
-                        if loop_count > 300 then
-                            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-                        end if;
+                        exit l_year when loop_count > max_loop_count;
                     end loop;
                 l_day = 1;
                 l_hour = 0;
                 l_minute = 0;
                 loop_count = loop_count + 1;
-                if loop_count > 300 then
-                    raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-                end if;
+                exit l_year when loop_count > max_loop_count;
             end loop;
         n_year = n_year + 1;
         l_month = 1;
         l_day = 1;
         l_hour = 0;
         l_minute = 0;
-        if loop_count > 300 then
-            raise exception 'cycle-index greater than 300, cannot find next time, exit function';
-        end if;
+        exit l_year when loop_count > max_loop_count;
     end loop;
+    raise exception 'cycle-index greater than 300, cannot find next time, exit function';
 end;
 $$;
 
@@ -357,8 +350,8 @@ begin
 
     dow = cron_arr[5];
     if regexp_match(dow,
-                    '^(\*|\?|[0-6](L|[-/][0-6]|#[1-4])?(,[0-6](L|[-/][0-6]|#[1-4])?)*)$') is null then
-        raise exception 'invalid day_of_week group, subexpression does not match ^(\*|\?|[0-6](L|[-/][0-6]|#[1-4])?(,[0-6](L|[-/][0-6]|#[1-4])?)*)$';
+                    '^(\*|\?|[0-6](L|#[1-4]|[-/][0-6])?(,[0-6](L|#[1-4]|[-/][0-6])?)*)$') is null then
+        raise exception 'invalid day_of_week group, subexpression does not match ^(\*|\?|[0-6](L|#[1-4]|[-/][0-6])?(,[0-6](L|#[1-4]|[-/][0-6])?)*)$';
     end if;
 
     month = cron_arr[4];
@@ -1013,7 +1006,7 @@ begin
                   and current_timestamp > timeout_time
                     for update skip locked
         loop
-            select * into plan from simples_plan where id = task.plan_id for update skip locked;
+            select * into plan from simples_plan where id = task.plan_id for update;
             if found then
                 if plan.last_exec_start_time = task.start_time then
                     update simples_plan
