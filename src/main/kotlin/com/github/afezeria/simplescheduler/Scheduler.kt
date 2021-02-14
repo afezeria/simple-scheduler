@@ -22,6 +22,7 @@ import javax.sql.DataSource
  * @param ordAsc 是否按优先级正序查询任务，为false时优先获取优先级低的任务，默认为true
  * @param planNamePrefix 计划名称前缀，只获取指定前缀的任务，默认为null
  * @param printStackTraceToErrorMsg 保存错误信息时是否保存异常堆栈，默认为false
+ * @param taskCallback 用户自定义回调接口，在任务开始前和任务开始后执行
  * @param name 调度器名称，只是方便人查看的名称，可重复，默认为 进程pid@主机名@随机uuid
  */
 class Scheduler(
@@ -33,6 +34,7 @@ class Scheduler(
     private val ordAsc: Boolean = true,
     private val planNamePrefix: String? = null,
     private val printStackTraceToErrorMsg: Boolean = false,
+    private val taskCallback: TaskCallback = object : TaskCallback {},
     name: String? = null,
 ) : InfoHelper(dataSource) {
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -242,13 +244,21 @@ class Scheduler(
     }
 
 
-    inner class Task(val id: Int, val initData: String? = null, val body: (String) -> Unit) :
+    inner class Task(
+        val id: Int,
+        val actionName: String,
+        val initData: String? = null,
+        val body: (String) -> Unit
+    ) :
         Runnable {
         override fun run() {
             logger.info("task start. [id:{}]", id)
+            var ex: Exception? = null
             try {
+                taskCallback.before(id, actionName, initData)
                 body(initData ?: "")
             } catch (e: Exception) {
+                ex = e
                 val errMsg = if (printStackTraceToErrorMsg) {
                     val writer = StringWriter()
                     e.printStackTrace(PrintWriter(writer))
@@ -256,16 +266,18 @@ class Scheduler(
                 } else {
                     e.message
                 }
-                logger.info("task failed. [id:{}]", id, e)
+                logger.warn("task failed. [id:{}]", id, e)
                 dataSource.connection.use {
                     it.execute("select simples_f_mark_task_error(?,?)", id, errMsg)
                 }
-                return
+            } finally {
+                taskCallback.after(id, actionName, initData, ex)
             }
-            dataSource.connection.use {
-                it.execute("select * from simples_f_mark_task_completed(?)", id)
+            if (ex == null) {
+                dataSource.connection.use {
+                    it.execute("select * from simples_f_mark_task_completed(?)", id)
+                }
             }
-
         }
     }
 
@@ -326,7 +338,7 @@ class Scheduler(
                                 """, taskId
                                 )
                             } else {
-                                val task = Task(taskId, initData, body)
+                                val task = Task(taskId, actionName, initData, body)
                                 pool.execute(task)
                             }
                         }
