@@ -1,6 +1,6 @@
 -- flag:table
-drop table if exists "simple_schema".simples_plan cascade;
-create table "simple_schema".simples_plan
+drop table if exists simples_plan cascade;
+create table simples_plan
 (
     id                   serial primary key,
     type                 text        not null default 'cron' check ( type in ('cron', 'basic') ),
@@ -29,34 +29,34 @@ create table "simple_schema".simples_plan
     next_exec_time       timestamptz not null default now(),
     remark               text
 );
-comment on table "simple_schema".simples_plan is '定时任务计划';
-comment on column "simple_schema".simples_plan.type is '类型，cron：根据表达式执行，basic：根据时间间隔执行';
-comment on column "simple_schema".simples_plan.cron is 'cron表达式';
-comment on column "simple_schema".simples_plan.name is '名称';
-comment on column "simple_schema".simples_plan.status is '状态，inactive 和 error 状态的任务会被执行器忽略';
-comment on column "simple_schema".simples_plan.executing is '是否有任务正在执行';
-comment on column "simple_schema".simples_plan.ord is '优先级，0-100，0为最高，默认50';
-comment on column "simple_schema".simples_plan.interval_time is '每次执行的间隔时间单位秒，用于basic类型';
-comment on column "simple_schema".simples_plan.remaining_times is '剩余执行次数';
-comment on column "simple_schema".simples_plan.action_name is '执行的动作名称，客户端根据该名称查找具体的任务实现';
-comment on column "simple_schema".simples_plan.exec_after_start is '开始否是否立刻执行一次，为false时basic类型开始后会经过 interval_time 秒后再执行';
-comment on column "simple_schema".simples_plan.serial_exec is '是否串行执行，type为cron类型时，到了执行时间如果上一个任务没有结束且没有超时则跳过当前任务。basic类型时，默认时间间隔从上一次开始时间算起，serial_exec 为true时时间间隔从上一次结束时间开始计算';
-comment on column "simple_schema".simples_plan.total_times is '总执行次数';
-comment on column "simple_schema".simples_plan.timeout is '超时时间，单位秒';
-comment on column "simple_schema".simples_plan.timeout_times is '超时次数';
-comment on column "simple_schema".simples_plan.error_times is '错误次数';
-comment on column "simple_schema".simples_plan.allow_error_times is '允许错误次数，超时次数和错误次数之和超过允许错误次数时 status 变更为error';
-comment on column "simple_schema".simples_plan.start_time is '开始时间';
-comment on column "simple_schema".simples_plan.end_time is '结束时间';
-comment on column "simple_schema".simples_plan.create_time is '创建时间';
-comment on column "simple_schema".simples_plan.create_user is '创建人，无特殊要求';
-comment on column "simple_schema".simples_plan.plan_data is '任务数据';
-comment on column "simple_schema".simples_plan.last_exec_start_time is '上一次任务的开始时间';
-comment on column "simple_schema".simples_plan.last_exec_end_time is '上一次任务的结束时间';
-comment on column "simple_schema".simples_plan.next_exec_time is '下一次计划执行时间';
+comment on table simples_plan is '定时任务计划';
+comment on column simples_plan.type is '类型，cron：根据表达式执行，basic：根据时间间隔执行';
+comment on column simples_plan.cron is 'cron表达式';
+comment on column simples_plan.name is '名称';
+comment on column simples_plan.status is '状态，inactive 和 error 状态的任务会被执行器忽略';
+comment on column simples_plan.executing is '是否有任务正在执行';
+comment on column simples_plan.ord is '优先级，0-100，0为最高，默认50';
+comment on column simples_plan.interval_time is '每次执行的间隔时间单位秒，用于basic类型';
+comment on column simples_plan.remaining_times is '剩余执行次数';
+comment on column simples_plan.action_name is '执行的动作名称，客户端根据该名称查找具体的任务实现';
+comment on column simples_plan.exec_after_start is '开始否是否立刻执行一次，为false时basic类型开始后会经过 interval_time 秒后再执行';
+comment on column simples_plan.serial_exec is '是否串行执行，type为cron类型时，到了执行时间如果上一个任务没有结束且没有超时则跳过当前任务。basic类型时，默认时间间隔从上一次开始时间算起，serial_exec 为true时时间间隔从上一次结束时间开始计算';
+comment on column simples_plan.total_times is '总执行次数';
+comment on column simples_plan.timeout is '超时时间，单位秒';
+comment on column simples_plan.timeout_times is '超时次数';
+comment on column simples_plan.error_times is '错误次数';
+comment on column simples_plan.allow_error_times is '允许错误次数，超时次数和错误次数之和超过允许错误次数时 status 变更为error';
+comment on column simples_plan.start_time is '开始时间';
+comment on column simples_plan.end_time is '结束时间';
+comment on column simples_plan.create_time is '创建时间';
+comment on column simples_plan.create_user is '创建人，无特殊要求';
+comment on column simples_plan.plan_data is '任务数据';
+comment on column simples_plan.last_exec_start_time is '上一次任务的开始时间';
+comment on column simples_plan.last_exec_end_time is '上一次任务的结束时间';
+comment on column simples_plan.next_exec_time is '下一次计划执行时间';
 
-drop table if exists "simple_schema".simples_scheduler cascade;
-create table "simple_schema".simples_scheduler
+drop table if exists simples_scheduler cascade;
+create table simples_scheduler
 (
     id                  serial primary key,
     name                text        not null,
@@ -65,15 +65,15 @@ create table "simple_schema".simples_scheduler
     check_interval      int         not null,
     last_heartbeat_time timestamptz not null default now()
 );
-comment on table "simple_schema".simples_scheduler is '客户端列表';
-comment on column "simple_schema".simples_scheduler.name is '客户端标识，无特殊要求，尽量保证同一时间status状态为active的客户端的name不一样';
-comment on column "simple_schema".simples_scheduler.start_time is '启动时间';
-comment on column "simple_schema".simples_scheduler.status is '执行器状态， optional: active inactive dead';
-comment on column "simple_schema".simples_scheduler.check_interval is '心跳间隔，单位:秒，轮询时如果 now> (last_heartbeat_time + check_interval*3) 则status状态更新为dead';
-comment on column "simple_schema".simples_scheduler.last_heartbeat_time is '最后一次心跳时间';
+comment on table simples_scheduler is '客户端列表';
+comment on column simples_scheduler.name is '客户端标识，无特殊要求，尽量保证同一时间status状态为active的客户端的name不一样';
+comment on column simples_scheduler.start_time is '启动时间';
+comment on column simples_scheduler.status is '执行器状态， optional: active inactive dead';
+comment on column simples_scheduler.check_interval is '心跳间隔，单位:秒，轮询时如果 now> (last_heartbeat_time + check_interval*3) 则status状态更新为dead';
+comment on column simples_scheduler.last_heartbeat_time is '最后一次心跳时间';
 
-drop table if exists "simple_schema".simples_task cascade;
-create table "simple_schema".simples_task
+drop table if exists simples_task cascade;
+create table simples_task
 (
     id           serial primary key,
     plan_id      serial,
@@ -86,16 +86,16 @@ create table "simple_schema".simples_task
     timeout_time timestamptz not null,
     error_msg    text
 );
-comment on table "simple_schema".simples_task is '任务列表';
-comment on column "simple_schema".simples_task.plan_id is '计划id';
-comment on column "simple_schema".simples_task.scheduler_id is '客户端id';
-comment on column "simple_schema".simples_task.start_time is '开始时间';
-comment on column "simple_schema".simples_task.end_time is '结束时间';
-comment on column "simple_schema".simples_task.action_name is '动作名称，和plan_id关联的数据的action_name一致';
-comment on column "simple_schema".simples_task.init_data is '初始化数据';
-comment on column "simple_schema".simples_task.status is '状态';
-comment on column "simple_schema".simples_task.error_msg is '错误信息';
-comment on column "simple_schema".simples_task.timeout_time is '超时时间';
+comment on table simples_task is '任务列表';
+comment on column simples_task.plan_id is '计划id';
+comment on column simples_task.scheduler_id is '客户端id';
+comment on column simples_task.start_time is '开始时间';
+comment on column simples_task.end_time is '结束时间';
+comment on column simples_task.action_name is '动作名称，和plan_id关联的数据的action_name一致';
+comment on column simples_task.init_data is '初始化数据';
+comment on column simples_task.status is '状态';
+comment on column simples_task.error_msg is '错误信息';
+comment on column simples_task.timeout_time is '超时时间';
 
 -- flag:cron function
 --  文件格式說明
@@ -107,7 +107,7 @@ comment on column "simple_schema".simples_task.timeout_time is '超时时间';
 --  │ │ │ │ │
 --  *  *  *  *  *
 -- 支持的符号： , - / ?(日和星期)
-create or replace function "simple_schema".simples_f_get_next_execution_time(cron text, start_time timestamptz) returns timestamptz
+create or replace function simples_f_get_next_execution_time(cron text, start_time timestamptz) returns timestamptz
     language plpgsql
     immutable as
 $$
@@ -155,7 +155,7 @@ begin
     if start_time is null then
         raise exception 'start_time cannot be null';
     end if;
-    perform "simple_schema".simples_f_cron_expr_check(cron);
+    perform simples_f_cron_expr_check(cron);
     expr_dow = cron_item[5];
     expr_month = cron_item[4];
     expr_day = cron_item[3];
@@ -171,9 +171,8 @@ begin
     else
         raise exception 'invalid cron expression, day and day_of_week cannot be meaningful at the same time';
     end if;
-    a_week_day_arr = "simple_schema".simples_f_filter_and_sort_arr_in_range(
-            "simple_schema".simples_f_parse_cron_sub_expr_and_get_range('day_of_week', expr_dow,
-                                                                        null, 0, 6),
+    a_week_day_arr = simples_f_filter_and_sort_arr_in_range(
+            simples_f_parse_cron_sub_expr_and_get_range('day_of_week', expr_dow, null, 0, 6),
             null, null
         );
     select array(select substring((regexp_matches(expr_dow, '(\d?L)', 'g'))[1]
@@ -182,9 +181,8 @@ begin
 --     raise notice 'week %',a_week_day_arr;
     <<l_year>>
     loop
-        a_month_arr = "simple_schema".simples_f_filter_and_sort_arr_in_range(
-                "simple_schema".simples_f_parse_cron_sub_expr_and_get_range('month', expr_month,
-                                                                            null, 1, 12),
+        a_month_arr = simples_f_filter_and_sort_arr_in_range(
+                simples_f_parse_cron_sub_expr_and_get_range('month', expr_month, null, 1, 12),
                 l_month, null
             );
 --         raise notice 'month %',a_month_arr;
@@ -195,15 +193,13 @@ begin
         end if;
         foreach n_month in array a_month_arr
             loop
-                days_of_month = extract(days from "simple_schema".simples_f_last_day_of_month(
+                days_of_month = extract(days from simples_f_last_day_of_month(
                         n_year, n_month))::int;
-                a_day_arr = "simple_schema".simples_f_filter_and_sort_arr_in_range(
-                            "simple_schema".simples_f_parse_cron_sub_expr_and_get_range('day',
-                                                                                        expr_day,
-                                                                                        null, 1,
-                                                                                        31) ||
+                a_day_arr = simples_f_filter_and_sort_arr_in_range(
+                            simples_f_parse_cron_sub_expr_and_get_range('day', expr_day, null, 1,
+                                                                        31) ||
 --                             获取匹配W的天的编号
-                            "simple_schema".simples_f_get_day_numbers_by_cron_w_option(
+                            simples_f_get_day_numbers_by_cron_w_option(
                                     expr_day, n_year,
                                     n_month),
                             l_day,
@@ -252,7 +248,7 @@ begin
 --                         raise notice 'tmp2 %',tmp2_arr;
                     end if;
                     if position('#' in expr_dow) is not null then
-                        tmp3_arr = "simple_schema".simples_f_get_day_numbers_by_cron_hash_option(
+                        tmp3_arr = simples_f_get_day_numbers_by_cron_hash_option(
                                 expr_dow, n_year, n_month);
                     end if;
                     a_day_arr = tmp1_arr || tmp2_arr || tmp3_arr;
@@ -270,11 +266,9 @@ begin
                 end if;
                 foreach n_day in array a_day_arr
                     loop
-                        a_hour_arr = "simple_schema".simples_f_filter_and_sort_arr_in_range(
-                                "simple_schema".simples_f_parse_cron_sub_expr_and_get_range('hour',
-                                                                                            expr_hour,
-                                                                                            null,
-                                                                                            0, 23),
+                        a_hour_arr = simples_f_filter_and_sort_arr_in_range(
+                                simples_f_parse_cron_sub_expr_and_get_range('hour', expr_hour, null,
+                                                                            0, 23),
                                 l_hour, null
                             );
 --                         raise notice 'hour %',a_hour_arr;
@@ -283,14 +277,12 @@ begin
                         end if;
                         foreach n_hour in array a_hour_arr
                             loop
-                                a_minute_arr =
-                                        "simple_schema".simples_f_filter_and_sort_arr_in_range(
-                                                "simple_schema".simples_f_parse_cron_sub_expr_and_get_range(
-                                                        'minute',
-                                                        expr_minute,
-                                                        null, 0, 59),
-                                                l_minute, null
-                                            );
+                                a_minute_arr = simples_f_filter_and_sort_arr_in_range(
+                                        simples_f_parse_cron_sub_expr_and_get_range('minute',
+                                                                                    expr_minute,
+                                                                                    null, 0, 59),
+                                        l_minute, null
+                                    );
 --                                 raise notice 'minute %',a_minute_arr;
                                 foreach n_minute in array a_minute_arr
                                     loop
@@ -330,9 +322,9 @@ begin
 end;
 $$;
 
-comment on function "simple_schema".simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
+comment on function simples_f_get_next_execution_time(text, timestamptz) is '输入cron表达式和开始时间返回下一次执行时间';
 
-create or replace function "simple_schema".simples_f_cron_expr_check(cron text) returns void
+create or replace function simples_f_cron_expr_check(cron text) returns void
     language plpgsql as
 $$
 declare
@@ -429,7 +421,7 @@ $$;
 
 
 
-create or replace function "simple_schema".simples_f_get_day_numbers_by_cron_hash_option(dow_expr text, c_year int, c_month int) returns int[]
+create or replace function simples_f_get_day_numbers_by_cron_hash_option(dow_expr text, c_year int, c_month int) returns int[]
     language plpgsql
     immutable as
 $$
@@ -447,7 +439,7 @@ begin
         return array []::int[];
     end if;
 
-    last_day = extract(days from "simple_schema".simples_f_last_day_of_month(c_year, c_month))::int;
+    last_day = extract(days from simples_f_last_day_of_month(c_year, c_month))::int;
     select array_agg(i)
     into res
     from (
@@ -461,11 +453,11 @@ begin
     return res;
 end;
 $$;
-comment on function "simple_schema".simples_f_get_day_numbers_by_cron_hash_option(text, int, int)
+comment on function simples_f_get_day_numbers_by_cron_hash_option(text, int, int)
     is '处理星期模式中的W选项，给定cron表达式星期部分和年月，返回符合#选项的天的数字，没有#选项时返回长度为0的数组';
 
 
-create or replace function "simple_schema".simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int) returns int[]
+create or replace function simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int) returns int[]
     language plpgsql
     immutable as
 $$
@@ -487,7 +479,7 @@ begin
     if target_days is null then
         target_days = array []::int[];
     end if;
-    last_day = extract(days from "simple_schema".simples_f_last_day_of_month(c_year, c_month))::int;
+    last_day = extract(days from simples_f_last_day_of_month(c_year, c_month))::int;
     if position('LW' in '') > 0 then
         target_days = target_days || last_day;
     end if;
@@ -505,10 +497,10 @@ begin
     return res;
 end;
 $$;
-comment on function "simple_schema".simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int)
+comment on function simples_f_get_day_numbers_by_cron_w_option(day_expr text, c_year int, c_month int)
     is '处理日模式中的W选项，给定cron表达式的日部分和年月，返回符合W选项的天的数字，没有W选项时返回长度为0的数组';
 
-create or replace function "simple_schema".simples_f_last_day_of_month(year int, month int) returns date
+create or replace function simples_f_last_day_of_month(year int, month int) returns date
     language plpgsql
     immutable strict as
 $$
@@ -516,10 +508,10 @@ begin
     return date_trunc('month', make_date(year, month, 1)) + interval '1 month' - interval '1 day';
 end;
 $$;
-comment on function "simple_schema".simples_f_last_day_of_month(int, int) is '根据年月获取最后一天的日期';
+comment on function simples_f_last_day_of_month(int, int) is '根据年月获取最后一天的日期';
 
 
-create or replace function "simple_schema".simples_f_filter_and_sort_arr_in_range(source int[], min int, max int) returns int[]
+create or replace function simples_f_filter_and_sort_arr_in_range(source int[], min int, max int) returns int[]
     language plpgsql
     immutable as
 $$
@@ -546,10 +538,10 @@ begin
     return arr;
 end;
 $$;
-comment on function "simple_schema".simples_f_filter_and_sort_arr_in_range(int[], int, int) is '根据区间上界和下界过滤int数组，上界和下界为空';
+comment on function simples_f_filter_and_sort_arr_in_range(int[], int, int) is '根据区间上界和下界过滤int数组，上界和下界为空';
 
 
-create or replace function "simple_schema".simples_f_parse_cron_sub_expr_and_get_range(d_name text, expr text, sub_expr text, lp int, rp int) returns int[]
+create or replace function simples_f_parse_cron_sub_expr_and_get_range(d_name text, expr text, sub_expr text, lp int, rp int) returns int[]
     language plpgsql
     immutable as
 $$
@@ -563,9 +555,8 @@ begin
         if position(',' in expr) > 0 then
             select array(select distinct unnest(i)
                          from (
-                                  select "simple_schema".simples_f_parse_cron_sub_expr_and_get_range(
-                                                 d_name, expr,
-                                                 x, lp, rp) as i
+                                  select simples_f_parse_cron_sub_expr_and_get_range(d_name, expr,
+                                                                                     x, lp, rp) as i
                                   from regexp_split_to_table(expr, ',') as t(x)
                               ) t)
             into ia;
@@ -647,19 +638,18 @@ begin
     return ia;
 end;
 $$;
-comment on function "simple_schema".simples_f_parse_cron_sub_expr_and_get_range(d_name text, expr text, sub_expr text, lp int, rp int) is '解析cron表达式按空格分组后的子表达式，并根据上界和下界返回可用值数组';
+comment on function simples_f_parse_cron_sub_expr_and_get_range(d_name text, expr text, sub_expr text, lp int, rp int) is '解析cron表达式按空格分组后的子表达式，并根据上界和下界返回可用值数组';
 
 -- flag:trigger
-create or replace function "simple_schema".simples_plan_trigger_fun_insert() returns trigger
+create or replace function simples_plan_trigger_fun_insert() returns trigger
     language plpgsql as
 $$
 declare
-    record_new     "simple_schema".simples_plan := new;
+    record_new     simples_plan := new;
     next_exec_time timestamptz;
 begin
     if record_new.type = 'cron' then
-        next_exec_time := "simple_schema".simples_f_get_next_execution_time(record_new.cron,
-                                                                            record_new.start_time);
+        next_exec_time := simples_f_get_next_execution_time(record_new.cron, record_new.start_time);
     else
         next_exec_time := record_new.start_time + record_new.interval_time * interval '1 second';
     end if;
@@ -672,21 +662,21 @@ begin
     return record_new;
 end;
 $$;
-comment on function "simple_schema".simples_plan_trigger_fun_insert() is '';
-drop trigger if exists simples_plan_insert_trigger on "simple_schema".simples_plan;
+comment on function simples_plan_trigger_fun_insert() is '';
+drop trigger if exists simples_plan_insert_trigger on simples_plan;
 create trigger simples_plan_insert_trigger
     before insert
-    on "simple_schema".simples_plan
+    on simples_plan
     for each row
-execute function "simple_schema".simples_plan_trigger_fun_insert();
+execute function simples_plan_trigger_fun_insert();
 
 
-create or replace function "simple_schema".simples_plan_trigger_fun_update() returns trigger
+create or replace function simples_plan_trigger_fun_update() returns trigger
     language plpgsql as
 $$
 declare
-    record_new     "simple_schema".simples_plan := new;
-    record_old     "simple_schema".simples_plan := old;
+    record_new     simples_plan := new;
+    record_old     simples_plan := old;
     s_time         timestamptz;
     next_exec_time timestamptz;
 begin
@@ -701,8 +691,7 @@ begin
             s_time := record_new.last_exec_start_time;
         end if;
         if s_time is not null then
-            next_exec_time :=
-                    "simple_schema".simples_f_get_next_execution_time(record_new.cron, s_time);
+            next_exec_time := simples_f_get_next_execution_time(record_new.cron, s_time);
         end if;
     elsif record_new.type = 'basic' then
         if record_new.serial_exec then
@@ -750,24 +739,24 @@ begin
     return record_new;
 end;
 $$;
-comment on function "simple_schema".simples_plan_trigger_fun_update() is '计划更新触发器，修改下次执行时间和计划状态';
-drop trigger if exists simples_plan_update_trigger on "simple_schema".simples_plan;
+comment on function simples_plan_trigger_fun_update() is '计划更新触发器，修改下次执行时间和计划状态';
+drop trigger if exists simples_plan_update_trigger on simples_plan;
 create trigger simples_plan_update_trigger
     before update
-    on "simple_schema".simples_plan
+    on simples_plan
     for each row
-execute function "simple_schema".simples_plan_trigger_fun_update();
+execute function simples_plan_trigger_fun_update();
 
 
 -- flag:function
-drop function if exists "simple_schema".simples_f_keepalive(c_id integer, c_name text, c_interval integer);
-create or replace function "simple_schema".simples_f_keepalive(c_id integer, c_name text, c_interval integer)
-    returns "simple_schema".simples_scheduler
+drop function if exists simples_f_keepalive(c_id integer, c_name text, c_interval integer);
+create or replace function simples_f_keepalive(c_id integer, c_name text, c_interval integer)
+    returns simples_scheduler
     language plpgsql
 as
 $$
 declare
-    client "simple_schema".simples_scheduler;
+    client simples_scheduler;
 begin
     --     c_id scheduler id
     --     c_name scheduler名称
@@ -781,13 +770,13 @@ begin
     end if;
 
 --     更新心跳时间或创建新的记录
-    update "simple_schema".simples_scheduler
+    update simples_scheduler
     set last_heartbeat_time = current_timestamp
     where id = c_id
       and status = 'active'
     returning * into client;
     if client is null then
-        insert into "simple_schema".simples_scheduler (name, status, check_interval)
+        insert into simples_scheduler (name, status, check_interval)
         values (c_name, 'active', c_interval)
         returning * into client;
     end if;
@@ -795,10 +784,10 @@ begin
     return client;
 end;
 $$;
-comment on function "simple_schema".simples_f_keepalive(c_id integer, c_name text, c_interval integer) is '登录/保持客户端登录状态';
+comment on function simples_f_keepalive(c_id integer, c_name text, c_interval integer) is '登录/保持客户端登录状态';
 
-drop function if exists "simple_schema".simples_f_mark_dead_scheduler();
-create or replace function "simple_schema".simples_f_mark_dead_scheduler()
+drop function if exists simples_f_mark_dead_scheduler();
+create or replace function simples_f_mark_dead_scheduler()
     returns table
             (
                 s_id   int,
@@ -808,11 +797,11 @@ create or replace function "simple_schema".simples_f_mark_dead_scheduler()
 as
 $$
 begin
-    return query update "simple_schema".simples_scheduler
+    return query update simples_scheduler
         set status = 'dead'
         where id in (
             select ss.id
-            from "simple_schema".simples_scheduler ss
+            from simples_scheduler ss
             where status = 'active'
               and current_timestamp >
                   last_heartbeat_time + (3 * check_interval * interval '1 second')
@@ -821,15 +810,13 @@ begin
         returning id,name;
 end;
 $$;
-comment on function "simple_schema".simples_f_mark_dead_scheduler() is '标记已未正常停止的调度程序';
+comment on function simples_f_mark_dead_scheduler() is '标记已未正常停止的调度程序';
 
 
-drop function if exists "simple_schema".simples_f_get_task(c_id int, c_name text, c_interval int,
-                                                           task_size int,
-                                                           name_prefix text, asc_ord bool);
-create or replace function "simple_schema".simples_f_get_task(c_id int, c_name text, c_interval int,
-                                                              task_size int,
-                                                              name_prefix text, asc_ord bool)
+drop function if exists simples_f_get_task(c_id int, c_name text, c_interval int, task_size int,
+                                           name_prefix text, asc_ord bool);
+create or replace function simples_f_get_task(c_id int, c_name text, c_interval int, task_size int,
+                                              name_prefix text, asc_ord bool)
     returns
         table
         (
@@ -842,7 +829,7 @@ create or replace function "simple_schema".simples_f_get_task(c_id int, c_name t
 as
 $$
 declare
-    scheduler "simple_schema".simples_scheduler;
+    scheduler simples_scheduler;
     id_arr    int[];
     sql_str   text;
 begin
@@ -851,7 +838,7 @@ begin
     -- c_interval scheduler 轮询间隔，单位秒
     -- task_size 请求的任务数量
     -- name_prefix 计划名称前缀
-    -- asc_ord 是否按照 "simple_schema".simples_plan.ord 正序搜索
+    -- asc_ord 是否按照 simples_plan.ord 正序搜索
     if task_size is null or task_size < 0 then
         raise exception 'invalid task_size:%, task_size must be greater than or equal to 0',task_size;
     end if;
@@ -861,14 +848,14 @@ begin
     if asc_ord is null then
         asc_ord := true;
     end if;
-    select * into scheduler from "simple_schema".simples_f_keepalive(c_id, c_name, c_interval);
+    select * into scheduler from simples_f_keepalive(c_id, c_name, c_interval);
 
 --     刷新计划状态
-    update "simple_schema".simples_plan
+    update simples_plan
     set status = 'active'
     where id in (
         select id
-        from "simple_schema".simples_plan sp
+        from simples_plan sp
         where status = 'inactive'
           and current_timestamp > start_time
           and (remaining_times is null or remaining_times > 0)
@@ -878,7 +865,7 @@ begin
         -- 查询任务
         sql_str := E'select array_agg(id)\n'
             'from (select id\n'
-            '      from "simple_schema".simples_plan sp\n'
+            '      from simples_plan sp\n'
             '      where sp.status = ''active''\n'
             '        and sp.name like $1\n'
             '        and (\n'
@@ -905,7 +892,7 @@ begin
         execute sql_str using name_prefix || '%',current_timestamp,current_timestamp,current_timestamp,task_size into id_arr;
         if id_arr is not null then
             return query with updated as (
-                update "simple_schema".simples_plan
+                update simples_plan
                     set
                         executing = true,
                         last_exec_start_time = current_timestamp,
@@ -913,18 +900,17 @@ begin
                         total_times = total_times + 1,
                         remaining_times = remaining_times - 1
                     where id = any (id_arr)
-                    returning id,"simple_schema".simples_plan.action_name,plan_data,timeout
+                    returning id,simples_plan.action_name,plan_data,timeout
                 )
-                insert into "simple_schema".simples_task (plan_id, scheduler_id, action_name,
-                                                          init_data,
-                                                          timeout_time)
+                insert into simples_task (plan_id, scheduler_id, action_name, init_data,
+                                          timeout_time)
                     select upd.id,
                            scheduler.id,
                            upd.action_name,
                            upd.plan_data,
                            current_timestamp + upd.timeout * interval '1 second'
                     from updated upd
-                    returning scheduler.id,"simple_schema".simples_task.action_name,"simple_schema".simples_task.id,"simple_schema".simples_task.init_data;
+                    returning scheduler.id,simples_task.action_name,simples_task.id,simples_task.init_data;
             return;
         end if;
     end if;
@@ -934,73 +920,70 @@ begin
 end ;
 $$;
 
-comment on function "simple_schema".simples_f_get_task(c_id integer, c_name text, c_interval integer, task_size integer, name_prefix text, asc_ord boolean) is '获取任务';
+comment on function simples_f_get_task(c_id integer, c_name text, c_interval integer, task_size integer, name_prefix text, asc_ord boolean) is '获取任务';
 
-create or replace function "simple_schema".simples_f_mark_task_completed(task_id int) returns void
+create or replace function simples_f_mark_task_completed(task_id int) returns void
     language plpgsql as
 $$
 declare
-    task "simple_schema".simples_task;
+    task simples_task;
 begin
-    select * into task from "simple_schema".simples_task where id = task_id for update;
+    select * into task from simples_task where id = task_id for update;
     if FOUND then
         if task.status = 'start' then
-            update "simple_schema".simples_task
-            set status  = 'stop',
-                end_time= current_timestamp
-            where id = task_id;
-            update "simple_schema".simples_plan
+            update simples_task set status = 'stop', end_time= current_timestamp where id = task_id;
+            update simples_plan
             set executing= false,
                 last_exec_end_time = current_timestamp
             where id = task.plan_id
               and last_exec_start_time = task.start_time;
         elsif task.status = 'timeout' then
-            update "simple_schema".simples_task set end_time = current_timestamp where id = task_id;
+            update simples_task set end_time = current_timestamp where id = task_id;
         end if;
     end if;
 end;
 $$;
-comment on function "simple_schema".simples_f_mark_task_completed(task_id int) is '标记任务已完成';
+comment on function simples_f_mark_task_completed(task_id int) is '标记任务已完成';
 
-create or replace function "simple_schema".simples_f_mark_task_error(task_id int, msg text) returns void
+create or replace function simples_f_mark_task_error(task_id int, msg text) returns void
     language plpgsql as
 $$
 declare
-    task "simple_schema".simples_task;
-    plan "simple_schema".simples_plan;
+    task simples_task;
+    plan simples_plan;
 begin
-    select * into task from "simple_schema".simples_task where id = task_id for update;
+    select * into task from simples_task where id = task_id for update;
     if FOUND then
-        update "simple_schema".simples_task
+        update simples_task
         set status    = 'error',
             end_time  = current_timestamp,
             error_msg = msg
         where id = task_id;
         if task.status = 'start' then
-            select * into plan from "simple_schema".simples_plan where id = task.plan_id for update;
+            select * into plan from simples_plan where id = task.plan_id for update;
             if plan.last_exec_start_time = task.start_time then
-                update "simple_schema".simples_plan
+                update simples_plan
                 set executing          = false,
                     last_exec_end_time = current_timestamp,
                     error_times        = error_times + 1
                 where id = task.plan_id;
             else
-                update "simple_schema".simples_plan
+                update simples_plan
                 set error_times = error_times + 1
                 where id = task.plan_id;
             end if;
         elsif task.status = 'timeout' then
-            update "simple_schema".simples_plan
+            update simples_plan
             set error_times = error_times + 1
             where id = task.plan_id;
         end if;
     end if;
 end;
 $$;
-comment on function "simple_schema".simples_f_mark_task_error(task_id int,msg text) is '标记任务执行失败';
+comment on function simples_f_mark_task_error(task_id int,msg text) is '标记任务执行失败';
 
-drop function if exists "simple_schema".simples_f_mark_timeout_task();
-create or replace function "simple_schema".simples_f_mark_timeout_task()
+drop function if exists simples_f_mark_timeout_task();
+create or replace function simples_f_mark_timeout_task()
     returns table
             (
                 plan_id         int,
@@ -1014,28 +997,28 @@ create or replace function "simple_schema".simples_f_mark_timeout_task()
 as
 $$
 declare
-    task "simple_schema".simples_task;
-    plan "simple_schema".simples_plan;
+    task simples_task;
+    plan simples_plan;
 begin
     for task in select *
-                from "simple_schema".simples_task st
+                from simples_task st
                 where status = 'start'
                   and current_timestamp > timeout_time
                     for update skip locked
         loop
-            select * into plan from "simple_schema".simples_plan where id = task.plan_id for update;
+            select * into plan from simples_plan where id = task.plan_id for update;
             if found then
                 if plan.last_exec_start_time = task.start_time then
-                    update "simple_schema".simples_plan
+                    update simples_plan
                     set executing     = false,
                         timeout_times = timeout_times + 1
                     where id = task.plan_id;
                 else
-                    update "simple_schema".simples_plan
+                    update simples_plan
                     set timeout_times = timeout_times + 1
                     where id = task.plan_id;
                 end if;
-                update "simple_schema".simples_task set status= 'timeout' where id = task.id;
+                update simples_task set status= 'timeout' where id = task.id;
                 plan_id = plan.id;
                 plan_name = plan.name;
                 action_name = task.action_name;
@@ -1048,4 +1031,4 @@ begin
     return;
 end;
 $$;
-comment on function "simple_schema".simples_f_mark_timeout_task() is '标记超时的任务';
+comment on function simples_f_mark_timeout_task() is '标记超时的任务';

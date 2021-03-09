@@ -23,6 +23,7 @@ import javax.sql.DataSource
  * @param planNamePrefix 计划名称前缀，只获取指定前缀的任务，默认为null
  * @param printStackTraceToErrorMsg 保存错误信息时是否保存异常堆栈，默认为false
  * @param taskCallback 用户自定义回调接口，在任务开始前和任务开始后执行
+ * @param schema 数据库schema
  * @param name 调度器名称，只是方便人查看的名称，可重复，默认为 进程pid@主机名@随机uuid
  */
 class Scheduler(
@@ -35,11 +36,13 @@ class Scheduler(
     private val planNamePrefix: String? = null,
     private val printStackTraceToErrorMsg: Boolean = false,
     private val taskCallback: TaskCallback = object : TaskCallback {},
+    schema: String? = null,
     name: String? = null,
 ) : InfoHelper(dataSource) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private lateinit var thread: Thread
     private val pool: ThreadPoolExecutor
+    private val schema = schema?.let { "\"$schema\"." } ?: ""
     val name: String
     private var sid: Int? = null
     val id: Int?
@@ -117,7 +120,7 @@ class Scheduler(
         dataSource.connection.use {
             val res = it.execute(
                 """
-                insert into simples_plan (type, name, ord, interval_time, remaining_times, action_name, 
+                insert into ${schema}simples_plan (type, name, ord, interval_time, remaining_times, action_name, 
                     exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
                     create_user, plan_data,remark) 
                 values ('basic',?,?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
@@ -136,7 +139,7 @@ class Scheduler(
         dataSource.connection.use {
             val res = it.execute(
                 """
-                update simples_plan 
+                update ${schema}simples_plan 
                 set type = ?,
                     cron = ?,
                     name = ?,
@@ -231,7 +234,7 @@ class Scheduler(
         dataSource.connection.use {
             val res = it.execute(
                 """
-                insert into simples_plan (type, name, ord, cron, remaining_times, action_name, 
+                insert into ${schema}simples_plan (type, name, ord, cron, remaining_times, action_name, 
                     exec_after_start, serial_exec, allow_error_times, timeout, start_time, end_time, 
                     create_user, plan_data,remark) 
                 values ('cron',?,?,?,?,?,?,?,?,?,?,?,?,?,?) returning *;
@@ -268,14 +271,14 @@ class Scheduler(
                 }
                 logger.warn("task failed. [id:{}]", id, e)
                 dataSource.connection.use {
-                    it.execute("select simples_f_mark_task_error(?,?)", id, errMsg)
+                    it.execute("select ${schema}simples_f_mark_task_error(?,?)", id, errMsg)
                 }
             } finally {
                 taskCallback.after(id, actionName, initData, ex)
             }
             if (ex == null) {
                 dataSource.connection.use {
-                    it.execute("select * from simples_f_mark_task_completed(?)", id)
+                    it.execute("select * from ${schema}simples_f_mark_task_completed(?)", id)
                 }
             }
         }
@@ -305,7 +308,7 @@ class Scheduler(
 
 
                     val execute = it.execute(
-                        "select * from simples_f_get_task(?,?,?,?,?,?)",
+                        "select * from ${schema}simples_f_get_task(?,?,?,?,?,?)",
                         sid, this@Scheduler.name, pollInterval, number, planNamePrefix, ordAsc
                     )
                     logger.info(
@@ -331,7 +334,7 @@ class Scheduler(
                                 )
                                 it.execute(
                                     """
-                                    update simples_task 
+                                    update ${schema}simples_task 
                                     set status = 'error',
                                         error_msg = 'action not find'
                                     where id = ?
@@ -352,7 +355,7 @@ class Scheduler(
 
         fun markTask() {
             dataSource.connection.use {
-                val list = it.execute("select * from simples_f_mark_timeout_task()")
+                val list = it.execute("select * from ${schema}simples_f_mark_timeout_task()")
                 for (m in list) {
                     logger.warn(
                         "task timeout. [plan_id:{},plan_name:{},action_name:{},scheduler_id:{},task_id:{},task_start_time:{}]",
@@ -369,7 +372,7 @@ class Scheduler(
 
         fun markScheduler() {
             dataSource.connection.use {
-                val list = it.execute("select * from simples_f_mark_dead_scheduler()")
+                val list = it.execute("select * from ${schema}simples_f_mark_dead_scheduler()")
                 for (m in list) {
                     logger.warn(
                         "scheduler did not end properly. [scheduler_id:{},scheduler_name]",
