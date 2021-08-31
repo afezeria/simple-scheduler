@@ -17,7 +17,7 @@ import javax.sql.DataSource
  * @param dataSource 数据源
  * @param actionProvider 提供任务实现的接口，
  * @param maximumPoolSize 线程池最大线程数/该调度器同时执行的任务数的最大值
- * @param pollInterval 轮询间隔，单位：秒，查询任务的时间间隔，建议为20-60之间
+ * @param pollInterval 轮询间隔，单位：秒，查询任务的时间间隔
  * @param batchSize 每次获取任务的数量的最大值，默认等于maximumPoolSize
  * @param ordAsc 是否按优先级正序查询任务，为false时优先获取优先级低的任务，默认为true
  * @param planNamePrefix 计划名称前缀，只获取指定前缀的任务，默认为null
